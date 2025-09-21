@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import Rating from "../component/Rating";
 import { CartContext } from "../context/CartContext";
 import Navbar from "../component/Navbar";
-import "./Homepage.css";
+import "./HomePage.css";
 import { API } from "../config";
 
 const HomePage = () => {

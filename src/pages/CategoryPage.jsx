@@ -4,7 +4,7 @@ import axios from "axios";
 import Rating from "../component/Rating";
 import Navbar from "../component/Navbar";
 import { CartContext } from "../context/CartContext";
-import "./Homepage.css"; 
+import "./HomePage.css"; 
 
 const CategoryPage = () => {
   const { category } = useParams(); 
