@@ -1,0 +1,139 @@
+.order-page {
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 1.5rem;
+  background: #ffffff;
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+.page-title {
+  font-size: 28px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 2rem;
+  color: #2d3748;
+}
+
+.order-section {
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  background-color: #fafafa;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.section-header h2 {
+  font-size: 1.3rem;
+  color: #333;
+  border-bottom: 2px solid #ddd;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.edit-btn {
+  background: #007bff;
+  color: white;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: background 0.3s ease;
+}
+
+.edit-btn:hover {
+  background: #0056b3;
+}
+
+.order-info p {
+  margin: 0.4rem 0;
+  font-size: 0.95rem;
+  color: #444;
+}
+
+.order-products {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.order-products th,
+.order-products td {
+  border: 1px solid #e0e0e0;
+  padding: 0.8rem;
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+.order-products th {
+  background: #f4f4f4;
+  font-weight: bold;
+}
+
+.order-products img {
+  width: 80px;
+  height: auto;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.order-summary {
+  margin-top: 1rem;
+}
+
+.summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+}
+
+.summary-prices h3 {
+  font-size: 1.1rem;
+  margin: 0.4rem 0;
+  color: #222;
+}
+
+.summary-prices span {
+  font-weight: bold;
+  color: #007bff;
+}
+
+.summary-payment {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.summary-payment > div {
+  max-width: 350px;
+}
+
+.paid-msg {
+  margin-top: 1rem;
+  padding: 0.8rem;
+  border-radius: 8px;
+  background: #c6f6d5;
+  color: #22543d;
+  font-weight: 600;
+  text-align: center;
+}
+
+.loading {
+  text-align: center;
+  font-size: 18px;
+  color: #555;
+}
+
+.error {
+  text-align: center;
+  color: red;
+  font-size: 18px;
+  margin: 1rem 0;
+}

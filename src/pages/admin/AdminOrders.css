@@ -1,0 +1,87 @@
+.admin-container {
+  max-width: 1000px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+}
+
+.admin-container h1 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  font-size: 1.8rem;
+  color: #111827;
+}
+
+.loading,
+.error,
+.no-data {
+  text-align: center;
+  font-size: 1.1rem;
+  margin-top: 2rem;
+}
+
+.error {
+  color: #dc2626;
+  background: #fee2e2;
+  padding: 1rem;
+  border-radius: 6px;
+}
+
+.no-data {
+  color: #6b7280;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 0.9rem;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+.admin-table th {
+  background: #f3f4f6;
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 0.9rem;
+}
+
+.admin-table tr:nth-child(even) {
+  background: #f9fafb;
+}
+
+.btn {
+  padding: 0.5rem 0.8rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0.2rem;
+  transition: background 0.3s ease;
+}
+
+.btn.details {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn.details:hover {
+  background: #2563eb;
+}
+
+.btn.deliver {
+  background: #10b981;
+  color: white;
+}
+
+.btn.deliver:hover {
+  background: #059669;
+}
