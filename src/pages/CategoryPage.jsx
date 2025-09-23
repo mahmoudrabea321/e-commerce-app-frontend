@@ -17,9 +17,11 @@ const CategoryPage = () => {
       try {
         setLoading(true);
         const { data } = await axios.get(`/api/products?category=${category}`);
-        setProducts(data);
+        // ✅ Ensure it's always an array
+        setProducts(Array.isArray(data) ? data : data.products || []);
       } catch (error) {
         console.error("Error fetching category products:", error.message);
+        setProducts([]); // fallback
       } finally {
         setLoading(false);
       }
@@ -37,7 +39,7 @@ const CategoryPage = () => {
       ) : products.length > 0 ? (
         <div className="products">
           {products.map((product) => (
-            <div key={product._id} className="product">
+            <div key={product._id || product.slug} className="product">
               <img src={product.image} alt={product.name} />
               <Link to={`/product/${product.slug}`}>
                 <h3>{product.name}</h3>

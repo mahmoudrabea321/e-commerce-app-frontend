@@ -17,9 +17,11 @@ const HomePage = () => {
       try {
         setLoading(true);
         const res = await axios.get(`${API}/api/products`);
-        setProducts(res.data);
+        // ✅ Ensure it's always an array
+        setProducts(Array.isArray(res.data) ? res.data : res.data.products || []);
       } catch (error) {
         console.error("Error fetching products:", error.message);
+        setProducts([]); // fallback
       } finally {
         setLoading(false);
       }
@@ -47,7 +49,7 @@ const HomePage = () => {
         ) : (
           <div className="products-grid">
             {products.map((product) => (
-              <div key={product.slug} className="product-card">
+              <div key={product.slug || product._id} className="product-card">
                 <Link to={`/product/${product.slug}`}>
                   <img src={`${API}${product.image}`} alt={product.name} />
                 </Link>
