@@ -49,7 +49,7 @@ const Navbar = () => {
         </button>
 
         <Link to={"/"}>
-          <div className="logo">My Shop</div>
+          <div className="logo">Zelia</div>
         </Link>
 
         <form className="search-bar" onSubmit={handleSearch}>

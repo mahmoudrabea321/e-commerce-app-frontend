@@ -17,11 +17,10 @@ const HomePage = () => {
       try {
         setLoading(true);
         const res = await axios.get(`${API}/api/products`);
-        // ✅ Ensure it's always an array
         setProducts(Array.isArray(res.data) ? res.data : res.data.products || []);
       } catch (error) {
         console.error("Error fetching products:", error.message);
-        setProducts([]); // fallback
+        setProducts([]); 
       } finally {
         setLoading(false);
       }
