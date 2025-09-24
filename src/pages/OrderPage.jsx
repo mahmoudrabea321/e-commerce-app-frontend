@@ -11,6 +11,7 @@ const OrderPage = () => {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [sdkReady, setSdkReady] = useState(false);
 
   const userInfo = localStorage.getItem("userInfo")
     ? JSON.parse(localStorage.getItem("userInfo"))
@@ -31,7 +32,8 @@ const OrderPage = () => {
 
         setOrder(data);
         setLoading(false);
-      } catch {
+      } catch (err) {
+        console.error("Order fetch error:", err);
         setError("Failed to fetch order details");
         setLoading(false);
       }
@@ -45,12 +47,24 @@ const OrderPage = () => {
     }
   }, [orderId, userInfo]);
 
+  // Initialize PayPal SDK
+  useEffect(() => {
+    if (order && !order.isPaid) {
+      setSdkReady(true);
+    }
+  }, [order]);
+
   const handleApprove = async (details) => {
-    await axios.put(`${API}/api/orders/${order._id}/pay`, details, {
-      headers: { Authorization: `Bearer ${userInfo?.token}` },
-    });
-    alert("✅ Payment successful!");
-    window.location.reload();
+    try {
+      await axios.put(`${API}/api/orders/${order._id}/pay`, details, {
+        headers: { Authorization: `Bearer ${userInfo?.token}` },
+      });
+      alert("✅ Payment successful!");
+      window.location.reload();
+    } catch (error) {
+      console.error("Payment error:", error);
+      alert("❌ Payment failed. Please try again.");
+    }
   };
 
   if (loading) return <div className="loading">Loading...</div>;
@@ -93,7 +107,6 @@ const OrderPage = () => {
               {order?.orderItems?.length > 0 ? (
                 order.orderItems.map((item, index) => (
                   <tr key={index}>
-                  
                     <td>{item.name}</td>
                     <td>{item.qty}</td>
                     <td>${item.price}</td>
@@ -120,42 +133,61 @@ const OrderPage = () => {
               <h3>
                 Total:{" "}
                 <span>
-                  {(order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15}
+                  ${(order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15}
                 </span>
               </h3>
             </div>
 
             <div className="summary-payment">
               {!order.isPaid ? (
-                <PayPalScriptProvider
-                  options={{
-                    "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID, 
-                    currency: "USD",
-                  }}
-                >
-                  <PayPalButtons
-                    createOrder={(data, actions) =>
-                      actions.order.create({
-                        purchase_units: [
-                          {
-                            amount: {
-                              value:
-                                (order?.orderItems?.reduce(
-                                  (a, c) => a + c.price * c.qty,
-                                  0
-                                ) || 0) + 15,
-                            },
-                          },
-                        ],
-                      })
-                    }
-                    onApprove={(data, actions) =>
-                      actions.order.capture().then(handleApprove)
-                    }
-                  />
-                </PayPalScriptProvider>
+                <>
+                  {sdkReady ? (
+                    <PayPalScriptProvider
+                      options={{
+                        "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID,
+                        currency: "USD",
+                        intent: "capture",
+                      }}
+                    >
+                      <PayPalButtons
+                        style={{ layout: "vertical" }}
+                        createOrder={(data, actions) => {
+                          const totalAmount = (order?.orderItems?.reduce(
+                            (a, c) => a + c.price * c.qty, 0
+                          ) || 0) + 15;
+                          
+                          return actions.order.create({
+                            purchase_units: [
+                              {
+                                amount: {
+                                  value: totalAmount.toFixed(2),
+                                  currency_code: "USD",
+                                },
+                              },
+                            ],
+                          });
+                        }}
+                        onApprove={async (data, actions) => {
+                          try {
+                            const details = await actions.order.capture();
+                            await handleApprove(details);
+                          } catch (error) {
+                            console.error("PayPal approval error:", error);
+                            alert("Payment failed. Please try again.");
+                          }
+                        }}
+                        onError={(err) => {
+                          console.error("PayPal error:", err);
+                          alert("Payment error occurred. Please try again.");
+                        }}
+                      />
+                    </PayPalScriptProvider>
+                  ) : (
+                    <div className="loading">Loading PayPal...</div>
+                  )}
+                </>
               ) : (
-                <p className="paid-msg">Order already paid</p>
+                <p className="paid-msg">✅ Order already paid</p>
               )}
             </div>
           </div>
@@ -164,4 +196,5 @@ const OrderPage = () => {
     </>
   );
 };
+
 export default OrderPage;
