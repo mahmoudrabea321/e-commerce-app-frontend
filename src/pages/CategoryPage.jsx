@@ -5,7 +5,7 @@ import Rating from "../component/Rating";
 import Navbar from "../component/Navbar";
 import { CartContext } from "../context/CartContext";
 import "./HomePage.css"; 
-import { API } from "../config"; // ✅ ADDED IMPORT
+import { API } from "../config";
 
 const CategoryPage = () => {
   const { category } = useParams(); 
