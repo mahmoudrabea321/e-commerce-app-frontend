@@ -3,6 +3,7 @@ import './SignUp.css';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
+import { API } from '../config'; 
 
 const SignUp = () => {
   const [name, setName] = useState('');
@@ -30,7 +31,7 @@ const SignUp = () => {
     }
 
     try {
-      const { data } = await axios.post('/api/users/signup', {
+      const { data } = await axios.post(`${API}/api/users/signup`, {
         name,
         email,
         password

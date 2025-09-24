@@ -2,6 +2,7 @@ import axios from "axios";
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./ShippingPage.css"; 
+import { API } from "../config"; 
 
 const ProfilePage = () => {
   const navigate = useNavigate();
@@ -22,7 +23,7 @@ const ProfilePage = () => {
     e.preventDefault();
 
     if (password !== confirmPassword) {
-      setMessage("❌ Passwords do not match");
+      setMessage("Passwords do not match");
       setMessageType("error");
       return;
     }
@@ -30,7 +31,7 @@ const ProfilePage = () => {
     try {
       setLoading(true);
       const { data } = await axios.put(
-        "/api/users/profile",
+        `${API}/api/users/profile`,
         { name, email, password },
         {
           headers: {
@@ -40,13 +41,13 @@ const ProfilePage = () => {
       );
 
       localStorage.setItem("userInfo", JSON.stringify(data));
-      setMessage("✅ Profile updated successfully!");
+      setMessage(" Profile updated successfully!");
       setMessageType("success");
       setTimeout(() => {
         navigate("/");
       }, 2000);
     } catch {
-      setMessage("❌ Failed to update profile");
+      setMessage("Failed to update profile");
       setMessageType("error");
     } finally {
       setLoading(false);

@@ -3,6 +3,7 @@ import './SignIn.css';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
+import { API } from '../config'; 
 
 const SignInPage = () => {
   const [email, setEmail] = useState('');
@@ -14,7 +15,6 @@ const SignInPage = () => {
   const location = useLocation();
   const { login } = useUser();
 
-  // get redirect from query param or default to home
   const redirect = new URLSearchParams(location.search).get("redirect") || "/";
 
   const handleSubmit = async (e) => {
@@ -23,12 +23,12 @@ const SignInPage = () => {
     setError('');
 
     try {
-      const { data } = await axios.post('/api/users/signin', {
+      // ✅ FIXED: Added ${API} to URL
+      const { data } = await axios.post(`${API}/api/users/signin`, {
         email,
         password,
       });
 
-      //  Save token & user info
       localStorage.setItem("token", data.token);
       localStorage.setItem(
         "userInfo",
@@ -37,8 +37,7 @@ const SignInPage = () => {
           name: data.name,
           email: data.email,
           isAdmin: data.isAdmin,
-          token: data.token, 
-
+          token: data.token,
         })
       );
 

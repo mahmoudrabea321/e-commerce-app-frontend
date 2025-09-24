@@ -5,6 +5,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useUser } from "../context/UserContext";
 import axios from "axios";
 import "./Navbar.css";
+import { API } from "../config";
 
 const Navbar = () => {
   const { cartCount } = useContext(CartContext);
@@ -19,10 +20,11 @@ const Navbar = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const { data } = await axios.get("/api/categories");
-        setCategories(data);
+        const { data } = await axios.get(`${API}/api/categories`);
+        setCategories(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error("Error fetching categories:", error.message);
+        setCategories([]); 
       }
     };
     fetchCategories();
@@ -121,8 +123,6 @@ const Navbar = () => {
                       >
                         Manage Users
                       </Link>
-
-
                     </>
                   )}
 
@@ -146,7 +146,7 @@ const Navbar = () => {
         </button>
         <h3>Categories</h3>
         <ul>
-          {categories.length > 0 ? (
+          {Array.isArray(categories) && categories.length > 0 ? (
             categories.map((cat) => (
               <li key={cat}>
                 <Link to={`/category/${cat}`} onClick={() => setIsOpen(false)}>

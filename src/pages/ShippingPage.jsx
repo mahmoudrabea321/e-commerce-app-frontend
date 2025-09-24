@@ -4,6 +4,7 @@ import './ShippingPage.css';
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
 import { CartContext } from '../context/CartContext';
+import { API } from '../config'; 
 
 const ShippingPage = () => {
   const [name, setName] = useState('');
@@ -20,7 +21,6 @@ const ShippingPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    //  Validate fields
     if (!name.trim()) return setError('Please enter your full name');
     if (!address.trim()) return setError('Please enter your address');
     if (!country.trim()) return setError('Please enter your country');
@@ -36,7 +36,6 @@ const ShippingPage = () => {
     localStorage.setItem('shippingData', JSON.stringify(shippingInfo));
 
     try {
-      //  Get token
       const token = localStorage.getItem("token");
       if (!token) {
         toast.error("Unauthorized, please login again!");
@@ -44,7 +43,6 @@ const ShippingPage = () => {
         return;
       }
 
-      // Create order directly
       const orderPayload = {
         orderItems: cartItems.map(item => ({
           name: item.name,
@@ -61,7 +59,7 @@ const ShippingPage = () => {
         ),
       };
 
-      const { data: savedOrder } = await axios.post("/api/orders", orderPayload, {
+      const { data: savedOrder } = await axios.post(`${API}/api/orders`, orderPayload, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

@@ -155,7 +155,7 @@ const OrderPage = () => {
                   />
                 </PayPalScriptProvider>
               ) : (
-                <p className="paid-msg">✅ Order already paid</p>
+                <p className="paid-msg">Order already paid</p>
               )}
             </div>
           </div>

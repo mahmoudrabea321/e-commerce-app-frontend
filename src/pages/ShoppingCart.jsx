@@ -6,6 +6,7 @@ import "./ShoppingCart.css";
 import { Link, useNavigate } from "react-router-dom";
 import { useUser } from "../context/UserContext";
 import { toast } from "react-hot-toast";
+import { API } from "../config"; 
 
 const ShoppingCart = () => {
   const { cartItems, cartCount, addToCart, removeFromCart } =
@@ -56,17 +57,16 @@ const ShoppingCart = () => {
             {cartItems.map((item) => (
               <Row key={`${item._id}-${item.quantity}`} className="cart-row">
                 <Col md={3}>
-      
-                <Col md={3}>
-               <img
-                src={`${"http://localhost:5000"}${item.image}`}
-                alt={item.name}
-                className="cart-img"
-                onError={(e) => {
-                e.target.src = '/images/placeholder.jpg'; 
-                 }}
-              />
-                </Col>
+                  <Col md={3}>
+                    <img
+                      src={`${API}${item.image}`}
+                      alt={item.name}
+                      className="cart-img"
+                      onError={(e) => {
+                        e.target.src = '/images/placeholder.jpg'; 
+                      }}
+                    />
+                  </Col>
                 </Col>
                 <Col md={3} className="item-name">{item.name}</Col>
                 <Col md={2}>${Number(item.price).toFixed(2)}</Col>
@@ -119,4 +119,3 @@ const ShoppingCart = () => {
 };
 
 export default ShoppingCart;
-

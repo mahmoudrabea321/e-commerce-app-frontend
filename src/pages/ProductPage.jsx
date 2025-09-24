@@ -24,7 +24,6 @@ function ProductPage() {
   const [reviewError, setReviewError] = useState("");
   const [reviewLoading, setReviewLoading] = useState(false);
 
-  // Fetch product
   const fetchProduct = async () => {
     try {
       setLoading(true);
@@ -32,7 +31,7 @@ function ProductPage() {
       const res = await axios.get(`${API}/api/products/${slug}`);
       setProduct(res.data);
     } catch (err) {
-      console.error("❌ Error fetching product:", err.message);
+      console.error(" Error fetching product:", err.message);
       setError("Product not found");
     } finally {
       setLoading(false);
@@ -47,7 +46,7 @@ function ProductPage() {
       const res = await axios.get(`${API}/api/products/${slug}`);
       setProduct(res.data);
     } catch (err) {
-      console.error("❌ Error fetching product:", err.message);
+      console.error(" Error fetching product:", err.message);
       setError("Product not found");
     } finally {
       setLoading(false);
@@ -82,7 +81,7 @@ function ProductPage() {
       setComment("");
       await fetchProduct(); 
     } catch (err) {
-      console.error("❌ Error submitting review:", err);
+      console.error("Error submitting review:", err);
       setReviewError(
         err.response?.data?.message || "Failed to submit review"
       );
@@ -176,7 +175,6 @@ function ProductPage() {
           </div>
         </div>
 
-        {/* Reviews Section */}
         <div className="reviews-section">
           <h2>Customer Reviews</h2>
           {product.reviews.length === 0 && <p>No reviews yet</p>}
@@ -198,7 +196,6 @@ function ProductPage() {
             ))}
           </ul>
 
-          {/* Review Form */}
           {userInfo ? (
             <form className="review-form" onSubmit={handleReviewSubmit}>
               <h3>Write a Review</h3>

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import "./OrderHistoryPage.css";
+import { API } from "../config"; 
 
 const OrderHistoryPage = () => {
   const navigate = useNavigate();
@@ -21,16 +22,17 @@ const OrderHistoryPage = () => {
           return;
         }
 
-        const { data } = await axios.get("/api/orders/mine", {
+        const { data } = await axios.get(`${API}/api/orders/mine`, {
           headers: { Authorization: `Bearer ${userInfo.token}` },
         });
 
-        setOrders(data);
+        setOrders(Array.isArray(data) ? data : []);
       } catch (err) {
-        console.error("❌ Fetch Orders Error:", err.response || err.message);
+        console.error(" Fetch Orders Error:", err.response || err.message);
         setError(
           err.response?.data?.message || "Failed to fetch order history"
         );
+        setOrders([]); 
       } finally {
         setLoading(false);
       }
@@ -63,13 +65,13 @@ const OrderHistoryPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order) => (
+                {Array.isArray(orders) && orders.map((order) => (
                   <tr key={order._id}>
                     <td>{order._id.slice(0, 8)}...</td>
                     <td>${order.totalPrice}</td>
-                    <td>{order.isDelivered ? "✅ Yes" : "❌ No"}</td>
+                    <td>{order.isDelivered ? "Yes" : " No"}</td>
                     <td>{new Date(order.createdAt).toLocaleDateString()}</td>
-                    <td>{order.isPaid ? "✅ Yes" : "❌ No"}</td>
+                    <td>{order.isPaid ? "Yes" : " No"}</td>
                     <td>
                       <button
                         className="details-btn"

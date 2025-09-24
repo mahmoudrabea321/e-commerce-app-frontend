@@ -4,6 +4,7 @@ import { toast } from "react-hot-toast";
 import axios from "axios";
 import "./PaymentPage.css";
 import { CartContext } from "../context/CartContext";
+import { API } from "../config"; 
 
 const PaymentPage = () => {
   const [paymentMethod, setPaymentMethod] = useState("");
@@ -13,23 +14,18 @@ const PaymentPage = () => {
   const [token, setToken] = useState("");
   const [shippingData, setShippingData] = useState(null);
   
-  // Get cartItems from context instead of props
   const { cartItems } = useContext(CartContext);
-
   const navigate = useNavigate();
 
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
     const storedShipping = localStorage.getItem("shippingData");
-    console.log("PaymentPage mounted");
-    console.log("Cart items:", cartItems);
-    console.log("Cart items length:", cartItems.length);
-  
+    
     if (cartItems.length === 0) {
-    console.warn("WARNING: Cart is empty! Redirecting to cart page.");
-    toast.error("Your cart is empty");
-    navigate('/cart');
-  }
+      console.warn("WARNING: Cart is empty! Redirecting to cart page.");
+      toast.error("Your cart is empty");
+      navigate('/cart');
+    }
 
     if (storedToken) setToken(storedToken);
     else {
@@ -43,8 +39,6 @@ const PaymentPage = () => {
       toast.error("Please enter shipping info first");
       navigate("/shipping");
     }
-
-    console.log("Cart items in PaymentPage:", cartItems);
   }, [navigate, cartItems]);
 
   const computedTotal = useMemo(() => {
@@ -70,54 +64,45 @@ const PaymentPage = () => {
     return true;
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-  if (!paymentMethod) {
-    toast.error("Please select a payment method");
-    return;
-  }
+    if (!paymentMethod) {
+      toast.error("Please select a payment method");
+      return;
+    }
 
-  if (paymentMethod === "card" && !validateCard()) return;
+    if (paymentMethod === "card" && !validateCard()) return;
 
-  try {
-    const orderPayload = {
-      orderItems: cartItems.map(item => ({
-        name: item.name,
-        qty: item.quantity || 1,
-        price: item.price,
-        product: item._id 
-      })),
-      shipping: shippingData,
-      payment: {
-        method: paymentMethod,
-        details: paymentMethod === "card" 
-          ? { cardNumber: "**** **** **** " + cardNumber.slice(-4), expiry }
-          : null,
-      },
-      totalPrice: computedTotal,
-    };
+    try {
+      const orderPayload = {
+        orderItems: cartItems.map(item => ({
+          name: item.name,
+          qty: item.quantity || 1,
+          price: item.price,
+          product: item._id 
+        })),
+        shipping: shippingData,
+        payment: {
+          method: paymentMethod,
+          details: paymentMethod === "card" 
+            ? { cardNumber: "**** **** **** " + cardNumber.slice(-4), expiry }
+            : null,
+        },
+        totalPrice: computedTotal,
+      };
 
-    console.log("Sending order:", orderPayload); 
+      const { data: savedOrder } = await axios.post(`${API}/api/orders`, orderPayload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    const { data: savedOrder } = await axios.post("/api/orders", orderPayload, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    toast.success("Order placed successfully!");
-    navigate(`/order/${savedOrder._id}`, { replace: true });
-
-    console.log("Cart items:", cartItems);
-   console.log("Do items have _id?", cartItems.map(item => ({ 
-  name: item.name, 
-  has_id: !!item._id, 
-  id_value: item._id 
-})));
-  } catch (error) {
-    console.error("Order error:", error.response?.data || error);
-    toast.error(error.response?.data?.message || "Failed to place order");
-  }
-};
+      toast.success("Order placed successfully!");
+      navigate(`/order/${savedOrder._id}`, { replace: true });
+    } catch (error) {
+      console.error("Order error:", error.response?.data || error);
+      toast.error(error.response?.data?.message || "Failed to place order");
+    }
+  };
 
   return (
     <div className="payment-container">
@@ -183,7 +168,6 @@ const handleSubmit = async (e) => {
           ✅ Complete Order
         </button>
       </form>
-      
     </div>
   );
 };
