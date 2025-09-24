@@ -1,3 +1,4 @@
+// ok my project now work well but i wanna the product style in the categorypage to be as same as the homepage
 import React, { useEffect, useState, useContext } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";

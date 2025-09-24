@@ -32,40 +32,50 @@ const CategoryPage = () => {
   return (
     <div>
       <Navbar />
-      <h2>Products in "{category}"</h2>
-
-      {loading ? (
-        <p>Loading...</p>
-      ) : Array.isArray(products) && products.length > 0 ? ( 
-        <div className="products">
-          {products.map((product) => (
-            <div key={product._id || product.slug} className="product">
-              <img src={`${API}${product.image}`} alt={product.name} />
-              <Link to={`/product/${product.slug}`}>
-                <h3>{product.name}</h3>
-                <Rating value={product.rating} numReviews={product.numReviews} />
-              </Link>
-              <p>${product.price}</p>
-              {product.countInStock === 0 ? (
-                <button disabled variant="light">
-                  Out of Stock
-                </button>
-              ) : (
-                <button
-                  className="btn"
-                  onClick={() =>
-                    addToCart({ ...product, price: Number(product.price) })
-                  }
-                >
-                  Add to Cart
-                </button>
-              )}
-            </div>
-          ))}
+      
+      <section className="hero">
+        <div className="hero-content">
+          <h1>Products in "{category}"</h1>
+          <p>Discover amazing products in this category</p>
         </div>
-      ) : (
-        <p>No products found in this category.</p>
-      )}
+      </section>
+
+      <section className="products-section">
+        <h2 className="section-title">{category} Products</h2>
+
+        {loading ? (
+          <p className="loading">Loading...</p>
+        ) : Array.isArray(products) && products.length > 0 ? (
+          <div className="products-grid">
+            {products.map((product) => (
+              <div key={product._id || product.slug} className="product-card">
+                <img src={`${API}${product.image}`} alt={product.name} />
+                <Link to={`/product/${product.slug}`}>
+                  <h3>{product.name}</h3>
+                  <Rating value={product.rating} numReviews={product.numReviews} />
+                </Link>
+                <p className="price">${product.price}</p>
+                {product.countInStock === 0 ? (
+                  <button disabled className="btn-disabled">
+                    Out of Stock
+                  </button>
+                ) : (
+                  <button
+                    className="btn-primary"
+                    onClick={() =>
+                      addToCart({ ...product, price: Number(product.price) })
+                    }
+                  >
+                    Add to Cart
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="loading">No products found in this category.</p>
+        )}
+      </section>
     </div>
   );
 };
