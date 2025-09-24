@@ -11,11 +11,13 @@ const OrderPage = () => {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [sdkReady, setSdkReady] = useState(false);
 
   const userInfo = localStorage.getItem("userInfo")
     ? JSON.parse(localStorage.getItem("userInfo"))
     : null;
+
+  // Get PayPal Client ID from frontend environment variables
+  const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -47,13 +49,6 @@ const OrderPage = () => {
     }
   }, [orderId, userInfo]);
 
-  // Initialize PayPal SDK
-  useEffect(() => {
-    if (order && !order.isPaid) {
-      setSdkReady(true);
-    }
-  }, [order]);
-
   const handleApprove = async (details) => {
     try {
       await axios.put(`${API}/api/orders/${order._id}/pay`, details, {
@@ -66,6 +61,14 @@ const OrderPage = () => {
       alert("❌ Payment failed. Please try again.");
     }
   };
+
+  // Debug information
+  console.log("=== DEBUG INFO ===");
+  console.log("Frontend API URL:", import.meta.env.VITE_API_URL);
+  console.log("PayPal Client ID:", paypalClientId);
+  console.log("PayPal Client ID length:", paypalClientId?.length);
+  console.log("Order data:", order);
+  console.log("==================");
 
   if (loading) return <div className="loading">Loading...</div>;
   if (error) return <div className="error">{error}</div>;
@@ -141,10 +144,10 @@ const OrderPage = () => {
             <div className="summary-payment">
               {!order.isPaid ? (
                 <>
-                  {sdkReady ? (
+                  {paypalClientId ? (
                     <PayPalScriptProvider
                       options={{
-                        "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID,
+                        "client-id": paypalClientId,
                         currency: "USD",
                         intent: "capture",
                       }}
@@ -183,7 +186,11 @@ const OrderPage = () => {
                       />
                     </PayPalScriptProvider>
                   ) : (
-                    <div className="loading">Loading PayPal...</div>
+                    <div className="error">
+                      ❌ PayPal is not configured properly.
+                      <br />
+                      <small>Please check environment variables.</small>
+                    </div>
                   )}
                 </>
               ) : (
