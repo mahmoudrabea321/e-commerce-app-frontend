@@ -11,12 +11,12 @@ const OrderPage = () => {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [paying, setPaying] = useState(false);
 
   const userInfo = localStorage.getItem("userInfo")
     ? JSON.parse(localStorage.getItem("userInfo"))
     : null;
 
-  // Get PayPal Client ID from frontend environment variables
   const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
 
   useEffect(() => {
@@ -51,24 +51,56 @@ const OrderPage = () => {
 
   const handleApprove = async (details) => {
     try {
-      await axios.put(`${API}/api/orders/${order._id}/pay`, details, {
-        headers: { Authorization: `Bearer ${userInfo?.token}` },
-      });
-      alert("✅ Payment successful!");
-      window.location.reload();
+      setPaying(true);
+      console.log("PayPal approval details:", details);
+      
+      // Prepare the payment data for backend
+      const paymentResult = {
+        id: details.id,
+        status: details.status,
+        update_time: details.update_time,
+        email_address: details.payer.email_address,
+      };
+
+      console.log("Sending payment data to backend:", paymentResult);
+      
+      const response = await axios.put(
+        `${API}/api/orders/${order._id}/pay`,
+        paymentResult,
+        {
+          headers: { 
+            Authorization: `Bearer ${userInfo?.token}`,
+            'Content-Type': 'application/json'
+          },
+        }
+      );
+
+      console.log("Backend response:", response.data);
+      
+      if (response.status === 200) {
+        alert("✅ Payment successful! Order updated.");
+        // Update local state instead of reloading
+        setOrder({ ...order, isPaid: true, paidAt: new Date().toISOString() });
+      } else {
+        throw new Error("Payment update failed");
+      }
     } catch (error) {
-      console.error("Payment error:", error);
-      alert("❌ Payment failed. Please try again.");
+      console.error("Payment error details:", error);
+      console.error("Error response:", error.response?.data);
+      
+      let errorMessage = "❌ Payment failed. Please try again.";
+      
+      if (error.response?.data?.message) {
+        errorMessage = `❌ Payment failed: ${error.response.data.message}`;
+      } else if (error.message) {
+        errorMessage = `❌ Payment failed: ${error.message}`;
+      }
+      
+      alert(errorMessage);
+    } finally {
+      setPaying(false);
     }
   };
-
-  // Debug information
-  console.log("=== DEBUG INFO ===");
-  console.log("Frontend API URL:", import.meta.env.VITE_API_URL);
-  console.log("PayPal Client ID:", paypalClientId);
-  console.log("PayPal Client ID length:", paypalClientId?.length);
-  console.log("Order data:", order);
-  console.log("==================");
 
   if (loading) return <div className="loading">Loading...</div>;
   if (error) return <div className="error">{error}</div>;
@@ -83,7 +115,6 @@ const OrderPage = () => {
         <div className="order-section">
           <div className="section-header">
             <h2>Shipping Information</h2>
-            <Link to="/Shipping" className="edit-btn">Edit</Link>
           </div>
           <div className="order-info">
             <p><strong>Name:</strong> {order?.shipping?.name || "N/A"}</p>
@@ -96,7 +127,6 @@ const OrderPage = () => {
         <div className="order-section">
           <div className="section-header">
             <h2>Order Items</h2>
-            <Link to="/cart" className="edit-btn">Edit</Link>
           </div>
           <table className="order-products">
             <thead>
@@ -144,6 +174,8 @@ const OrderPage = () => {
             <div className="summary-payment">
               {!order.isPaid ? (
                 <>
+                  {paying && <div className="loading">Processing payment...</div>}
+                  
                   {paypalClientId ? (
                     <PayPalScriptProvider
                       options={{
@@ -173,28 +205,36 @@ const OrderPage = () => {
                         onApprove={async (data, actions) => {
                           try {
                             const details = await actions.order.capture();
+                            console.log("PayPal capture successful:", details);
                             await handleApprove(details);
                           } catch (error) {
-                            console.error("PayPal approval error:", error);
-                            alert("Payment failed. Please try again.");
+                            console.error("PayPal capture error:", error);
+                            alert("❌ Payment capture failed. Please try again.");
                           }
                         }}
                         onError={(err) => {
-                          console.error("PayPal error:", err);
-                          alert("Payment error occurred. Please try again.");
+                          console.error("PayPal SDK error:", err);
+                          alert("❌ PayPal loading failed. Please refresh the page.");
+                        }}
+                        onCancel={(data) => {
+                          console.log("Payment cancelled by user:", data);
                         }}
                       />
                     </PayPalScriptProvider>
                   ) : (
                     <div className="error">
                       ❌ PayPal is not configured properly.
-                      <br />
-                      <small>Please check environment variables.</small>
                     </div>
                   )}
                 </>
               ) : (
-                <p className="paid-msg">✅ Order already paid</p>
+                <div className="paid-success">
+                  <p className="paid-msg">✅ Order already paid</p>
+                  <p>Paid on: {new Date(order.paidAt).toLocaleDateString()}</p>
+                  {order.paymentResult && (
+                    <p>Transaction ID: {order.paymentResult.id}</p>
+                  )}
+                </div>
               )}
             </div>
           </div>
