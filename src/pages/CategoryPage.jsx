@@ -5,6 +5,7 @@ import Rating from "../component/Rating";
 import Navbar from "../component/Navbar";
 import { CartContext } from "../context/CartContext";
 import "./HomePage.css"; 
+import { API } from "../config"; // ✅ ADDED IMPORT
 
 const CategoryPage = () => {
   const { category } = useParams(); 
@@ -16,12 +17,11 @@ const CategoryPage = () => {
     const fetchProducts = async () => {
       try {
         setLoading(true);
-        const { data } = await axios.get(`/api/products?category=${category}`);
-        // ✅ Ensure it's always an array
+        const { data } = await axios.get(`${API}/api/products?category=${category}`);
         setProducts(Array.isArray(data) ? data : data.products || []);
       } catch (error) {
         console.error("Error fetching category products:", error.message);
-        setProducts([]); // fallback
+        setProducts([]); 
       } finally {
         setLoading(false);
       }
@@ -36,11 +36,11 @@ const CategoryPage = () => {
 
       {loading ? (
         <p>Loading...</p>
-      ) : products.length > 0 ? (
+      ) : Array.isArray(products) && products.length > 0 ? ( 
         <div className="products">
           {products.map((product) => (
             <div key={product._id || product.slug} className="product">
-              <img src={product.image} alt={product.name} />
+              <img src={`${API}${product.image}`} alt={product.name} />
               <Link to={`/product/${product.slug}`}>
                 <h3>{product.name}</h3>
                 <Rating value={product.rating} numReviews={product.numReviews} />
