@@ -217,16 +217,10 @@ const OrderPage = () => {
                 <>
                   {paying && <div className="loading">Processing payment...</div>}
                   
-                  <div style={{
-                    backgroundColor: '#f0f8ff',
-                    padding: '10px',
-                    margin: '10px 0',
-                    border: '1px solid #d1ecf1',
-                    borderRadius: '5px'
-                  }}>
-                    {paypalClientId && (
-                      <p><strong>ID Preview:</strong> {paypalClientId.substring(0, 15)}...</p>
-                    )}
+                  {/* Professional payment box */}
+                  <div className="payment-box">
+                    <h4>💳 Secure Payment</h4>
+                    <p>Checkout safely with PayPal</p>
                   </div>
 
                   {paypalClientId ? (
@@ -334,7 +328,6 @@ const OrderPage = () => {
                     <div className="error" style={{padding: '15px', textAlign: 'center'}}>
                       <h3>❌ PayPal Configuration Error</h3>
                       <p>Please check your .env file and ensure VITE_PAYPAL_CLIENT_ID is set correctly.</p>
-                      <p>Current value: {import.meta.env.VITE_PAYPAL_CLIENT_ID || "NOT FOUND"}</p>
                     </div>
                   )}
                 </>
