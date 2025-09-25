@@ -4,7 +4,6 @@ import "./OrderPage.css";
 import { useParams } from "react-router-dom";
 import Navbar from "../component/Navbar";
 import { API } from "../config";
-import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 
 const OrderPage = () => {
   const { id: orderId } = useParams();
@@ -12,6 +11,7 @@ const OrderPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [paying, setPaying] = useState(false);
+  const [paypalLoaded, setPaypalLoaded] = useState(false);
 
   const userInfo = localStorage.getItem("userInfo")
     ? JSON.parse(localStorage.getItem("userInfo"))
@@ -20,12 +20,104 @@ const OrderPage = () => {
   const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || 
                         "AXgjXvV9ul6KUiTw9uKwpKuMObDmWqw3_ZuF9V-v6W1xW76I-tSdx8EnAvO3lVmaRqIEmD0QDAB33fCJ";
 
+  // Load PayPal script manually to avoid CSP issues
   useEffect(() => {
-    console.log("=== ENVIRONMENT VARIABLES DEBUG ===");
-    console.log("VITE_PAYPAL_CLIENT_ID:", import.meta.env.VITE_PAYPAL_CLIENT_ID);
-    console.log("PayPal Client ID to be used:", paypalClientId);
+    const loadPaypalScript = () => {
+      if (window.paypal) {
+        setPaypalLoaded(true);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = `https://www.paypal.com/sdk/js?client-id=${paypalClientId}&currency=USD`;
+      script.addEventListener('load', () => {
+        setPaypalLoaded(true);
+      });
+      script.addEventListener('error', () => {
+        console.error('Failed to load PayPal SDK');
+      });
+      document.body.appendChild(script);
+    };
+
+    if (paypalClientId) {
+      loadPaypalScript();
+    }
   }, [paypalClientId]);
 
+  // Render PayPal buttons manually
+  useEffect(() => {
+    if (paypalLoaded && window.paypal && order && !order.isPaid) {
+      try {
+        // Clean up any existing buttons
+        const existingContainer = document.getElementById('paypal-button-container');
+        if (existingContainer) {
+          existingContainer.innerHTML = '';
+        }
+
+        window.paypal.Buttons({
+          style: {
+            layout: 'vertical',
+            color: 'gold',
+            shape: 'rect',
+            label: 'paypal'
+          },
+          createOrder: function(data, actions) {
+            const totalAmount = (order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15;
+            return actions.order.create({
+              purchase_units: [{
+                amount: {
+                  value: totalAmount.toFixed(2),
+                  currency_code: "USD",
+                }
+              }]
+            });
+          },
+          onApprove: async function(data, actions) {
+            try {
+              setPaying(true);
+              const details = await actions.order.capture();
+              
+              const paymentResult = {
+                id: details.id,
+                status: details.status,
+                update_time: details.update_time || new Date().toISOString(),
+                email_address: details.payer?.email_address,
+              };
+
+              const response = await axios.put(
+                `${API}/api/orders/${order._id}/pay`,
+                paymentResult,
+                {
+                  headers: { 
+                    Authorization: `Bearer ${userInfo?.token}`,
+                    'Content-Type': 'application/json'
+                  },
+                }
+              );
+
+              if (response.status === 200) {
+                alert("✅ Payment successful! Order updated.");
+                setOrder(response.data);
+              }
+            } catch (error) {
+              console.error("Payment error:", error);
+              alert("❌ Payment failed. Please try again.");
+            } finally {
+              setPaying(false);
+            }
+          },
+          onError: function(err) {
+            console.error('PayPal error:', err);
+            alert('❌ Payment failed. Please try again.');
+          }
+        }).render('#paypal-button-container');
+      } catch (error) {
+        console.error('Error rendering PayPal buttons:', error);
+      }
+    }
+  }, [paypalLoaded, order, userInfo]);
+
+  // Your existing useEffect for fetching order
   useEffect(() => {
     const fetchOrder = async () => {
       try {
@@ -35,20 +127,14 @@ const OrderPage = () => {
           return;
         }
 
-        console.log("=== ORDER FETCH DEBUG ===");
-        console.log("Fetching order with ID:", orderId);
-        console.log("User token exists:", !!userInfo?.token);
-        console.log("API URL:", API);
-
         const { data } = await axios.get(`${API}/api/orders/${orderId}`, {
           headers: { Authorization: `Bearer ${userInfo?.token}` },
         });
 
-        console.log("✅ Order fetched successfully:", data);
         setOrder(data);
         setLoading(false);
       } catch (err) {
-        console.error("❌ Order fetch error:", err);
+        console.error("Order fetch error:", err);
         setError("Failed to fetch order details");
         setLoading(false);
       }
@@ -61,41 +147,6 @@ const OrderPage = () => {
       setLoading(false);
     }
   }, [orderId, userInfo]);
-
-  const handleApprove = async (details) => {
-    try {
-      setPaying(true);
-      console.log("PayPal approval details:", details);
-      
-      const paymentResult = {
-        id: details.id,
-        status: details.status,
-        update_time: details.update_time || new Date().toISOString(),
-        email_address: details.payer?.email_address,
-      };
-
-      const response = await axios.put(
-        `${API}/api/orders/${order._id}/pay`,
-        paymentResult,
-        {
-          headers: { 
-            Authorization: `Bearer ${userInfo?.token}`,
-            'Content-Type': 'application/json'
-          },
-        }
-      );
-
-      if (response.status === 200) {
-        alert("✅ Payment successful! Order updated.");
-        setOrder(response.data);
-      }
-    } catch (error) {
-      console.error("Payment error:", error);
-      alert("❌ Payment failed. Please try again.");
-    } finally {
-      setPaying(false);
-    }
-  };
 
   if (loading) return <div className="loading">Loading...</div>;
   if (error) return <div className="error">{error}</div>;
@@ -168,57 +219,19 @@ const OrderPage = () => {
                 <>
                   {paying && <div className="loading">Processing payment...</div>}
                   
-                  {paypalClientId ? (
-                    <div className="paypal-container">
-                      <h3 className="payment-title">Secure Payment</h3>
-                      <PayPalScriptProvider
-                        options={{
-                          "client-id": paypalClientId,
-                          currency: "USD",
-                          intent: "capture",
-                        }}
-                      >
-                        <PayPalButtons
-                          style={{ 
-                            layout: "vertical",
-                            color: "gold",
-                            shape: "rect",
-                            label: "paypal"
-                          }}
-                          createOrder={(data, actions) => {
-                            return actions.order.create({
-                              purchase_units: [{
-                                amount: {
-                                  value: total.toFixed(2),
-                                  currency_code: "USD",
-                                }
-                              }]
-                            });
-                          }}
-                          onApprove={async (data, actions) => {
-                            try {
-                              const details = await actions.order.capture();
-                              await handleApprove(details);
-                            } catch{
-                              alert("❌ Payment failed. Please try again.");
-                            }
-                          }}
-                          onError={(err) => {
-                            console.error("PayPal error:", err);
-                            alert("❌ Payment system error.");
-                          }}
-                        />
-                      </PayPalScriptProvider>
-                      <div className="security-notice">
-                        <p>🔒 Your payment is secure and encrypted</p>
-                      </div>
+                  <div className="paypal-container">
+                    <h3 className="payment-title">Secure Payment</h3>
+                    
+                    {paypalLoaded ? (
+                      <div id="paypal-button-container"></div>
+                    ) : (
+                      <div className="loading">Loading payment system...</div>
+                    )}
+                    
+                    <div className="security-notice">
+                      <p>🔒 Your payment is secure and encrypted</p>
                     </div>
-                  ) : (
-                    <div className="error">
-                      <h3>❌ Payment System Unavailable</h3>
-                      <p>Please try again later or contact support.</p>
-                    </div>
-                  )}
+                  </div>
                 </>
               ) : (
                 <div className="paid-success">
