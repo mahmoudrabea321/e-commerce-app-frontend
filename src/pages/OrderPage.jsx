@@ -28,14 +28,25 @@ const OrderPage = () => {
           return;
         }
 
+        console.log("=== ORDER FETCH DEBUG ===");
+        console.log("Fetching order with ID:", orderId);
+        console.log("User token exists:", !!userInfo?.token);
+        console.log("API URL:", API);
+
         const { data } = await axios.get(`${API}/api/orders/${orderId}`, {
           headers: { Authorization: `Bearer ${userInfo?.token}` },
         });
 
+        console.log("✅ Order fetched successfully:", data);
+        console.log("Order is paid:", data.isPaid);
+        console.log("Order total items:", data.orderItems?.length);
+        console.log("Order total amount:", (data.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15);
+        
         setOrder(data);
         setLoading(false);
       } catch (err) {
-        console.error("Order fetch error:", err);
+        console.error("❌ Order fetch error:", err);
+        console.error("Error response:", err.response?.data);
         setError("Failed to fetch order details");
         setLoading(false);
       }
@@ -52,17 +63,27 @@ const OrderPage = () => {
   const handleApprove = async (details) => {
     try {
       setPaying(true);
+      console.log("=== PAYPAL APPROVAL DEBUG ===");
       console.log("PayPal approval details:", details);
       
-      // Prepare the payment data for backend
+      if (!details.id || !details.status) {
+        throw new Error("Invalid payment details received from PayPal");
+      }
+
       const paymentResult = {
         id: details.id,
         status: details.status,
-        update_time: details.update_time,
-        email_address: details.payer.email_address,
+        update_time: details.update_time || new Date().toISOString(),
+        email_address: details.payer?.email_address || "unknown@email.com",
+        payer: {
+          email_address: details.payer?.email_address,
+          payer_id: details.payer?.payer_id,
+          name: details.payer?.name
+        }
       };
 
-      console.log("Sending payment data to backend:", paymentResult);
+      console.log("Sending payment data to backend for order:", order._id);
+      console.log("Payment data:", paymentResult);
       
       const response = await axios.put(
         `${API}/api/orders/${order._id}/pay`,
@@ -72,30 +93,42 @@ const OrderPage = () => {
             Authorization: `Bearer ${userInfo?.token}`,
             'Content-Type': 'application/json'
           },
+          timeout: 10000, 
         }
       );
 
-      console.log("Backend response:", response.data);
+      console.log("✅ Backend response:", response.data);
       
       if (response.status === 200) {
         alert("✅ Payment successful! Order updated.");
-        setOrder({ ...order, isPaid: true, paidAt: new Date().toISOString() });
+        // Update local state with the returned order data
+        setOrder(response.data);
       } else {
-        throw new Error("Payment update failed");
+        throw new Error(`Server returned status: ${response.status}`);
       }
     } catch (error) {
-      console.error("Payment error details:", error);
+      console.error("❌ Payment error details:", error);
       console.error("Error response:", error.response?.data);
       
       let errorMessage = "❌ Payment failed. Please try again.";
       
-      if (error.response?.data?.message) {
+      if (error.response?.status === 404) {
+        errorMessage = "❌ Order not found. Please contact support.";
+      } else if (error.response?.status === 401) {
+        errorMessage = "❌ Session expired. Please log in again.";
+      } else if (error.response?.data?.message) {
         errorMessage = `❌ Payment failed: ${error.response.data.message}`;
       } else if (error.message) {
         errorMessage = `❌ Payment failed: ${error.message}`;
       }
       
       alert(errorMessage);
+      
+      if (error.response?.status === 404) {
+        setTimeout(() => {
+          window.location.href = '/orders';
+        }, 3000);
+      }
     } finally {
       setPaying(false);
     }
@@ -190,6 +223,8 @@ const OrderPage = () => {
                             (a, c) => a + c.price * c.qty, 0
                           ) || 0) + 15;
                           
+                          console.log("Creating PayPal order for amount:", totalAmount);
+                          
                           return actions.order.create({
                             purchase_units: [
                               {
@@ -197,26 +232,42 @@ const OrderPage = () => {
                                   value: totalAmount.toFixed(2),
                                   currency_code: "USD",
                                 },
+                                custom_id: order._id,
                               },
                             ],
+                            application_context: {
+                              shipping_preference: "NO_SHIPPING"
+                            }
                           });
                         }}
                         onApprove={async (data, actions) => {
                           try {
+                            console.log("PayPal order approved, order ID:", data.orderID);
+                            console.log("Backend order ID:", order._id);                            
                             const details = await actions.order.capture();
-                            console.log("PayPal capture successful:", details);
-                            await handleApprove(details);
+                            console.log("PayPal capture successful:", details);                          
+                            await handleApprove(details);                            
                           } catch (error) {
                             console.error("PayPal capture error:", error);
-                            alert("❌ Payment capture failed. Please try again.");
+                            
+                            if (error.message?.includes("unauthorized")) {
+                              alert("❌ Payment authorization failed. Please try the payment again.");
+                            } else {
+                              alert("❌ Payment failed. Please try again.");
+                            }
                           }
                         }}
                         onError={(err) => {
                           console.error("PayPal SDK error:", err);
-                          alert("❌ PayPal loading failed. Please refresh the page.");
+                          if (err.message?.includes("popup")) {
+                            alert("❌ PayPal window was blocked. Please allow popups and try again.");
+                          } else {
+                            alert("❌ PayPal loading failed. Please refresh the page.");
+                          }
                         }}
                         onCancel={(data) => {
                           console.log("Payment cancelled by user:", data);
+                          alert("Payment was cancelled. You can try again anytime.");
                         }}
                       />
                     </PayPalScriptProvider>
