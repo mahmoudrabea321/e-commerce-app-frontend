@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import "./OrderPage.css";
-import { useParams, Link } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import Navbar from "../component/Navbar";
 import { API } from "../config";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
@@ -17,7 +17,17 @@ const OrderPage = () => {
     ? JSON.parse(localStorage.getItem("userInfo"))
     : null;
 
-  const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
+  const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || 
+                        "AXgjXvV9ul6KUiTw9uKwpKuMObDmWqw3_ZuF9V-v6W1xW76I-tSdx8EnAvO3lVmaRqIEmD0QDAB33fCJ";
+
+  useEffect(() => {
+    console.log("=== ENVIRONMENT VARIABLES DEBUG ===");
+    console.log("VITE_PAYPAL_CLIENT_ID:", import.meta.env.VITE_PAYPAL_CLIENT_ID);
+    console.log("PayPal Client ID to be used:", paypalClientId);
+    console.log("Client ID length:", paypalClientId.length);
+    console.log("Client ID starts with:", paypalClientId.substring(0, 10));
+    
+  }, [orderId, userInfo, paypalClientId]);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -101,7 +111,6 @@ const OrderPage = () => {
       
       if (response.status === 200) {
         alert("✅ Payment successful! Order updated.");
-        // Update local state with the returned order data
         setOrder(response.data);
       } else {
         throw new Error(`Server returned status: ${response.status}`);
@@ -208,22 +217,49 @@ const OrderPage = () => {
                 <>
                   {paying && <div className="loading">Processing payment...</div>}
                   
+                  <div style={{
+                    backgroundColor: '#f0f8ff',
+                    padding: '10px',
+                    margin: '10px 0',
+                    border: '1px solid #d1ecf1',
+                    borderRadius: '5px'
+                  }}>
+                    <h4>🔧 PayPal Configuration Status</h4>
+                    <p><strong>Client ID Loaded:</strong> 
+                      <span style={{color: paypalClientId ? 'green' : 'red', fontWeight: 'bold'}}>
+                        {paypalClientId ? ' ✅ SUCCESS' : ' ❌ FAILED'}
+                      </span>
+                    </p>
+                    {paypalClientId && (
+                      <p><strong>ID Preview:</strong> {paypalClientId.substring(0, 15)}...</p>
+                    )}
+                  </div>
+
                   {paypalClientId ? (
                     <PayPalScriptProvider
                       options={{
                         "client-id": paypalClientId,
                         currency: "USD",
                         intent: "capture",
+                        components: "buttons",
+                        "data-namespace": "paypal_sdk",
+                        "data-client-token": "optional"
                       }}
                     >
                       <PayPalButtons
-                        style={{ layout: "vertical" }}
+                        style={{ 
+                          layout: "vertical",
+                          color: "gold",
+                          shape: "rect",
+                          height: 40
+                        }}
+                        fundingSource="paypal"
                         createOrder={(data, actions) => {
                           const totalAmount = (order?.orderItems?.reduce(
                             (a, c) => a + c.price * c.qty, 0
                           ) || 0) + 15;
                           
-                          console.log("Creating PayPal order for amount:", totalAmount);
+                          console.log("💰 Creating PayPal order for amount:", totalAmount.toFixed(2));
                           
                           return actions.order.create({
                             purchase_units: [
@@ -231,49 +267,80 @@ const OrderPage = () => {
                                 amount: {
                                   value: totalAmount.toFixed(2),
                                   currency_code: "USD",
+                                  breakdown: {
+                                    item_total: {
+                                      value: (order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0).toFixed(2),
+                                      currency_code: "USD"
+                                    },
+                                    shipping: {
+                                      value: "10.00",
+                                      currency_code: "USD"
+                                    },
+                                    tax_total: {
+                                      value: "5.00",
+                                      currency_code: "USD"
+                                    }
+                                  }
                                 },
+                                items: order?.orderItems?.map(item => ({
+                                  name: item.name,
+                                  unit_amount: {
+                                    value: item.price.toFixed(2),
+                                    currency_code: "USD"
+                                  },
+                                  quantity: item.qty.toString(),
+                                  category: "PHYSICAL_GOODS"
+                                })) || [],
                                 custom_id: order._id,
+                                description: `Order #${order._id}`
                               },
                             ],
                             application_context: {
-                              shipping_preference: "NO_SHIPPING"
+                              shipping_preference: "NO_SHIPPING",
+                              user_action: "PAY_NOW",
+                              brand_name: "Your Store Name"
                             }
                           });
                         }}
                         onApprove={async (data, actions) => {
                           try {
-                            console.log("PayPal order approved, order ID:", data.orderID);
-                            console.log("Backend order ID:", order._id);                            
+                            console.log("✅ PayPal order approved:", data.orderID);
+                            console.log("🔗 Backend order ID:", order._id);
+                            
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                            
                             const details = await actions.order.capture();
-                            console.log("PayPal capture successful:", details);                          
-                            await handleApprove(details);                            
+                            console.log("💰 PayPal capture successful:", details);
+                            
+                            await handleApprove(details);
+                            
                           } catch (error) {
-                            console.error("PayPal capture error:", error);
+                            console.error("❌ PayPal capture error:", error);
                             
                             if (error.message?.includes("unauthorized")) {
-                              alert("❌ Payment authorization failed. Please try the payment again.");
+                              alert("❌ Payment authorization failed. Please try again.");
+                            } else if (error.message?.includes("popup")) {
+                              alert("❌ Payment window was closed. Please try again.");
                             } else {
-                              alert("❌ Payment failed. Please try again.");
+                              alert("❌ Payment failed: " + (error.message || "Unknown error"));
                             }
                           }
                         }}
                         onError={(err) => {
-                          console.error("PayPal SDK error:", err);
-                          if (err.message?.includes("popup")) {
-                            alert("❌ PayPal window was blocked. Please allow popups and try again.");
-                          } else {
-                            alert("❌ PayPal loading failed. Please refresh the page.");
-                          }
+                          console.error("❌ PayPal SDK error:", err);
+                          alert("❌ PayPal failed to load. Please refresh the page and check your connection.");
                         }}
                         onCancel={(data) => {
-                          console.log("Payment cancelled by user:", data);
+                          console.log("⚠️ Payment cancelled by user:", data);
                           alert("Payment was cancelled. You can try again anytime.");
                         }}
                       />
                     </PayPalScriptProvider>
                   ) : (
-                    <div className="error">
-                      ❌ PayPal is not configured properly.
+                    <div className="error" style={{padding: '15px', textAlign: 'center'}}>
+                      <h3>❌ PayPal Configuration Error</h3>
+                      <p>Please check your .env file and ensure VITE_PAYPAL_CLIENT_ID is set correctly.</p>
+                      <p>Current value: {import.meta.env.VITE_PAYPAL_CLIENT_ID || "NOT FOUND"}</p>
                     </div>
                   )}
                 </>
