@@ -24,7 +24,10 @@ const OrderPage = () => {
     console.log("=== ENVIRONMENT VARIABLES DEBUG ===");
     console.log("VITE_PAYPAL_CLIENT_ID:", import.meta.env.VITE_PAYPAL_CLIENT_ID);
     console.log("PayPal Client ID to be used:", paypalClientId);
-  }, [paypalClientId]);
+    console.log("Client ID length:", paypalClientId.length);
+    console.log("Client ID starts with:", paypalClientId.substring(0, 10));
+    
+  }, [orderId, userInfo, paypalClientId]);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -144,9 +147,6 @@ const OrderPage = () => {
   if (error) return <div className="error">{error}</div>;
   if (!order) return <div>No order found</div>;
 
-  const subtotal = order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0;
-  const total = subtotal + 15;
-
   return (
     <>
       <Navbar />
@@ -175,7 +175,6 @@ const OrderPage = () => {
                 <th>Product</th>
                 <th>Qty</th>
                 <th>Price</th>
-                <th>Total</th>
               </tr>
             </thead>
             <tbody>
@@ -184,8 +183,7 @@ const OrderPage = () => {
                   <tr key={index}>
                     <td>{item.name}</td>
                     <td>{item.qty}</td>
-                    <td>${item.price.toFixed(2)}</td>
-                    <td>${(item.price * item.qty).toFixed(2)}</td>
+                    <td>${item.price}</td>
                   </tr>
                 ))
               ) : (
@@ -200,10 +198,18 @@ const OrderPage = () => {
         <div className="order-section order-summary">
           <div className="summary-header">
             <div className="summary-prices">
-              <h3>Subtotal: <span>${subtotal.toFixed(2)}</span></h3>
-              <h3>Shipping: <span>$10.00</span></h3>
-              <h3>Tax: <span>$5.00</span></h3>
-              <h3>Total: <span>${total.toFixed(2)}</span></h3>
+              <h3>
+                Subtotal: $
+                {order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0}
+              </h3>
+              <h3>Shipping: $10</h3>
+              <h3>Tax: $5</h3>
+              <h3>
+                Total:{" "}
+                <span>
+                  ${(order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15}
+                </span>
+              </h3>
             </div>
 
             <div className="summary-payment">
@@ -211,82 +217,124 @@ const OrderPage = () => {
                 <>
                   {paying && <div className="loading">Processing payment...</div>}
                   
-                  {/* PayPal Payment Section - Clean and Professional */}
+                  <div style={{
+                    backgroundColor: '#f0f8ff',
+                    padding: '10px',
+                    margin: '10px 0',
+                    border: '1px solid #d1ecf1',
+                    borderRadius: '5px'
+                  }}>
+                    {paypalClientId && (
+                      <p><strong>ID Preview:</strong> {paypalClientId.substring(0, 15)}...</p>
+                    )}
+                  </div>
+
                   {paypalClientId ? (
-                    <div className="payment-section">
-                      <h3 className="payment-title">Secure Payment</h3>
-                      <p className="payment-subtitle">Pay safely with PayPal</p>
-                      
-                      <PayPalScriptProvider
-                        options={{
-                          "client-id": paypalClientId,
-                          currency: "USD",
-                          intent: "capture",
-                          components: "buttons",
+                    <PayPalScriptProvider
+                      options={{
+                        "client-id": paypalClientId,
+                        currency: "USD",
+                        intent: "capture",
+                        components: "buttons",
+                        "data-namespace": "paypal_sdk",
+                        "data-client-token": "optional"
+                      }}
+                    >
+                      <PayPalButtons
+                        style={{ 
+                          layout: "vertical",
+                          color: "gold",
+                          shape: "rect",
+                          height: 40
                         }}
-                      >
-                        <PayPalButtons
-                          style={{ 
-                            layout: "vertical",
-                            color: "gold",
-                            shape: "rect",
-                            height: 45,
-                            label: "paypal"
-                          }}
-                          createOrder={(data, actions) => {
-                            console.log("💰 Creating PayPal order for amount:", total.toFixed(2));
-                            
-                            return actions.order.create({
-                              purchase_units: [
-                                {
-                                  amount: {
-                                    value: total.toFixed(2),
-                                    currency_code: "USD",
-                                  },
-                                  custom_id: order._id,
-                                  description: `Order #${order._id.substring(0, 8)}`
+                        fundingSource="paypal"
+                        createOrder={(data, actions) => {
+                          const totalAmount = (order?.orderItems?.reduce(
+                            (a, c) => a + c.price * c.qty, 0
+                          ) || 0) + 15;
+                          
+                          console.log("💰 Creating PayPal order for amount:", totalAmount.toFixed(2));
+                          
+                          return actions.order.create({
+                            purchase_units: [
+                              {
+                                amount: {
+                                  value: totalAmount.toFixed(2),
+                                  currency_code: "USD",
+                                  breakdown: {
+                                    item_total: {
+                                      value: (order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0).toFixed(2),
+                                      currency_code: "USD"
+                                    },
+                                    shipping: {
+                                      value: "10.00",
+                                      currency_code: "USD"
+                                    },
+                                    tax_total: {
+                                      value: "5.00",
+                                      currency_code: "USD"
+                                    }
+                                  }
                                 },
-                              ],
-                              application_context: {
-                                shipping_preference: "NO_SHIPPING",
-                                user_action: "PAY_NOW",
-                              }
-                            });
-                          }}
-                          onApprove={async (data, actions) => {
-                            try {
-                              console.log("✅ PayPal order approved:", data.orderID);
-                              
-                              await new Promise(resolve => setTimeout(resolve, 500));
-                              
-                              const details = await actions.order.capture();
-                              console.log("💰 PayPal capture successful:", details);
-                              
-                              await handleApprove(details);
-                              
-                            } catch (error) {
-                              console.error("❌ PayPal capture error:", error);
-                              alert("❌ Payment failed. Please try again.");
+                                items: order?.orderItems?.map(item => ({
+                                  name: item.name,
+                                  unit_amount: {
+                                    value: item.price.toFixed(2),
+                                    currency_code: "USD"
+                                  },
+                                  quantity: item.qty.toString(),
+                                  category: "PHYSICAL_GOODS"
+                                })) || [],
+                                custom_id: order._id,
+                                description: `Order #${order._id}`
+                              },
+                            ],
+                            application_context: {
+                              shipping_preference: "NO_SHIPPING",
+                              user_action: "PAY_NOW",
+                              brand_name: "Your Store Name"
                             }
-                          }}
-                          onError={(err) => {
-                            console.error("❌ PayPal SDK error:", err);
-                            alert("❌ Payment system error. Please refresh the page.");
-                          }}
-                          onCancel={(data) => {
-                            console.log("⚠️ Payment cancelled by user:", data);
-                          }}
-                        />
-                      </PayPalScriptProvider>
-                      
-                      <div className="security-notice">
-                        <p>🔒 Your payment is secure and encrypted</p>
-                      </div>
-                    </div>
+                          });
+                        }}
+                        onApprove={async (data, actions) => {
+                          try {
+                            console.log("✅ PayPal order approved:", data.orderID);
+                            console.log("🔗 Backend order ID:", order._id);
+                            
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                            
+                            const details = await actions.order.capture();
+                            console.log("💰 PayPal capture successful:", details);
+                            
+                            await handleApprove(details);
+                            
+                          } catch (error) {
+                            console.error("❌ PayPal capture error:", error);
+                            
+                            if (error.message?.includes("unauthorized")) {
+                              alert("❌ Payment authorization failed. Please try again.");
+                            } else if (error.message?.includes("popup")) {
+                              alert("❌ Payment window was closed. Please try again.");
+                            } else {
+                              alert("❌ Payment failed: " + (error.message || "Unknown error"));
+                            }
+                          }
+                        }}
+                        onError={(err) => {
+                          console.error("❌ PayPal SDK error:", err);
+                          alert("❌ PayPal failed to load. Please refresh the page and check your connection.");
+                        }}
+                        onCancel={(data) => {
+                          console.log("⚠️ Payment cancelled by user:", data);
+                          alert("Payment was cancelled. You can try again anytime.");
+                        }}
+                      />
+                    </PayPalScriptProvider>
                   ) : (
                     <div className="error" style={{padding: '15px', textAlign: 'center'}}>
-                      <h3>❌ Payment System Unavailable</h3>
-                      <p>Please try again later or contact support.</p>
+                      <h3>❌ PayPal Configuration Error</h3>
+                      <p>Please check your .env file and ensure VITE_PAYPAL_CLIENT_ID is set correctly.</p>
+                      <p>Current value: {import.meta.env.VITE_PAYPAL_CLIENT_ID || "NOT FOUND"}</p>
                     </div>
                   )}
                 </>
@@ -295,7 +343,7 @@ const OrderPage = () => {
                   <p className="paid-msg">✅ Order already paid</p>
                   <p>Paid on: {new Date(order.paidAt).toLocaleDateString()}</p>
                   {order.paymentResult && (
-                    <p>Transaction ID: {order.paymentResult.id.substring(0, 15)}...</p>
+                    <p>Transaction ID: {order.paymentResult.id}</p>
                   )}
                 </div>
               )}
