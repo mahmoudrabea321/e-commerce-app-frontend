@@ -24,7 +24,7 @@ const OrderPage = () => {
     console.log("=== ENVIRONMENT VARIABLES DEBUG ===");
     console.log("VITE_PAYPAL_CLIENT_ID:", import.meta.env.VITE_PAYPAL_CLIENT_ID);
     console.log("PayPal Client ID to be used:", paypalClientId);
-  }, [paypalClientId]); // Remove dependencies to fix ESLint warning
+  }, [paypalClientId]);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -45,15 +45,10 @@ const OrderPage = () => {
         });
 
         console.log("✅ Order fetched successfully:", data);
-        console.log("Order is paid:", data.isPaid);
-        console.log("Order total items:", data.orderItems?.length);
-        console.log("Order total amount:", (data.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15);
-        
         setOrder(data);
         setLoading(false);
       } catch (err) {
         console.error("❌ Order fetch error:", err);
-        console.error("Error response:", err.response?.data);
         setError("Failed to fetch order details");
         setLoading(false);
       }
@@ -70,28 +65,15 @@ const OrderPage = () => {
   const handleApprove = async (details) => {
     try {
       setPaying(true);
-      console.log("=== PAYPAL APPROVAL DEBUG ===");
       console.log("PayPal approval details:", details);
       
-      if (!details.id || !details.status) {
-        throw new Error("Invalid payment details received from PayPal");
-      }
-
       const paymentResult = {
         id: details.id,
         status: details.status,
         update_time: details.update_time || new Date().toISOString(),
-        email_address: details.payer?.email_address || "unknown@email.com",
-        payer: {
-          email_address: details.payer?.email_address,
-          payer_id: details.payer?.payer_id,
-          name: details.payer?.name
-        }
+        email_address: details.payer?.email_address,
       };
 
-      console.log("Sending payment data to backend for order:", order._id);
-      console.log("Payment data:", paymentResult);
-      
       const response = await axios.put(
         `${API}/api/orders/${order._id}/pay`,
         paymentResult,
@@ -100,41 +82,16 @@ const OrderPage = () => {
             Authorization: `Bearer ${userInfo?.token}`,
             'Content-Type': 'application/json'
           },
-          timeout: 10000, 
         }
       );
 
-      console.log("✅ Backend response:", response.data);
-      
       if (response.status === 200) {
         alert("✅ Payment successful! Order updated.");
         setOrder(response.data);
-      } else {
-        throw new Error(`Server returned status: ${response.status}`);
       }
     } catch (error) {
-      console.error("❌ Payment error details:", error);
-      console.error("Error response:", error.response?.data);
-      
-      let errorMessage = "❌ Payment failed. Please try again.";
-      
-      if (error.response?.status === 404) {
-        errorMessage = "❌ Order not found. Please contact support.";
-      } else if (error.response?.status === 401) {
-        errorMessage = "❌ Session expired. Please log in again.";
-      } else if (error.response?.data?.message) {
-        errorMessage = `❌ Payment failed: ${error.response.data.message}`;
-      } else if (error.message) {
-        errorMessage = `❌ Payment failed: ${error.message}`;
-      }
-      
-      alert(errorMessage);
-      
-      if (error.response?.status === 404) {
-        setTimeout(() => {
-          window.location.href = '/orders';
-        }, 3000);
-      }
+      console.error("Payment error:", error);
+      alert("❌ Payment failed. Please try again.");
     } finally {
       setPaying(false);
     }
@@ -211,72 +168,53 @@ const OrderPage = () => {
                 <>
                   {paying && <div className="loading">Processing payment...</div>}
                   
-                  {/* REMOVED: PayPal Configuration Status Card */}
-                  
                   {paypalClientId ? (
-                    <PayPalScriptProvider
-                      options={{
-                        "client-id": paypalClientId,
-                        currency: "USD",
-                        intent: "capture",
-                        components: "buttons",
-                      }}
-                    >
-                      <PayPalButtons
-                        style={{ 
-                          layout: "vertical",
-                          color: "gold",
-                          shape: "rect",
-                          height: 40
+                    <div className="paypal-container">
+                      <h3 className="payment-title">Secure Payment</h3>
+                      <PayPalScriptProvider
+                        options={{
+                          "client-id": paypalClientId,
+                          currency: "USD",
+                          intent: "capture",
                         }}
-                        createOrder={(data, actions) => {
-                          console.log("💰 Creating PayPal order for amount:", total.toFixed(2));
-                          
-                          return actions.order.create({
-                            purchase_units: [
-                              {
+                      >
+                        <PayPalButtons
+                          style={{ 
+                            layout: "vertical",
+                            color: "gold",
+                            shape: "rect",
+                            label: "paypal"
+                          }}
+                          createOrder={(data, actions) => {
+                            return actions.order.create({
+                              purchase_units: [{
                                 amount: {
                                   value: total.toFixed(2),
                                   currency_code: "USD",
-                                },
-                                custom_id: order._id,
-                                description: `Order #${order._id.substring(0, 8)}`
-                              },
-                            ],
-                            application_context: {
-                              shipping_preference: "NO_SHIPPING",
-                              user_action: "PAY_NOW",
+                                }
+                              }]
+                            });
+                          }}
+                          onApprove={async (data, actions) => {
+                            try {
+                              const details = await actions.order.capture();
+                              await handleApprove(details);
+                            } catch{
+                              alert("❌ Payment failed. Please try again.");
                             }
-                          });
-                        }}
-                        onApprove={async (data, actions) => {
-                          try {
-                            console.log("✅ PayPal order approved:", data.orderID);
-                            
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                            
-                            const details = await actions.order.capture();
-                            console.log("💰 PayPal capture successful:", details);
-                            
-                            await handleApprove(details);
-                            
-                          } catch (error) {
-                            console.error("❌ PayPal capture error:", error);
-                            alert("❌ Payment failed. Please try again.");
-                          }
-                        }}
-                        onError={(err) => {
-                          console.error("❌ PayPal SDK error:", err);
-                          alert("❌ Payment system error. Please refresh the page.");
-                        }}
-                        onCancel={(data) => {
-                          console.log("⚠️ Payment cancelled by user:", data);
-                          alert("Payment was cancelled. You can try again anytime.");
-                        }}
-                      />
-                    </PayPalScriptProvider>
+                          }}
+                          onError={(err) => {
+                            console.error("PayPal error:", err);
+                            alert("❌ Payment system error.");
+                          }}
+                        />
+                      </PayPalScriptProvider>
+                      <div className="security-notice">
+                        <p>🔒 Your payment is secure and encrypted</p>
+                      </div>
+                    </div>
                   ) : (
-                    <div className="error" style={{padding: '15px', textAlign: 'center'}}>
+                    <div className="error">
                       <h3>❌ Payment System Unavailable</h3>
                       <p>Please try again later or contact support.</p>
                     </div>
@@ -287,7 +225,7 @@ const OrderPage = () => {
                   <p className="paid-msg">✅ Order already paid</p>
                   <p>Paid on: {new Date(order.paidAt).toLocaleDateString()}</p>
                   {order.paymentResult && (
-                    <p>Transaction ID: {order.paymentResult.id.substring(0, 15)}...</p>
+                    <p>Transaction ID: {order.paymentResult.id}</p>
                   )}
                 </div>
               )}
