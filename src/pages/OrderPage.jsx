@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import "./OrderPage.css";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import Navbar from "../component/Navbar";
 import { API } from "../config";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
@@ -53,7 +53,8 @@ const OrderPage = () => {
     try {
       setPaying(true);
       console.log("PayPal approval details:", details);
-
+      
+      // Prepare the payment data for backend
       const paymentResult = {
         id: details.id,
         status: details.status,
@@ -62,20 +63,20 @@ const OrderPage = () => {
       };
 
       console.log("Sending payment data to backend:", paymentResult);
-
+      
       const response = await axios.put(
         `${API}/api/orders/${order._id}/pay`,
         paymentResult,
         {
-          headers: {
+          headers: { 
             Authorization: `Bearer ${userInfo?.token}`,
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json'
           },
         }
       );
 
       console.log("Backend response:", response.data);
-
+      
       if (response.status === 200) {
         alert("✅ Payment successful! Order updated.");
         setOrder({ ...order, isPaid: true, paidAt: new Date().toISOString() });
@@ -85,14 +86,15 @@ const OrderPage = () => {
     } catch (error) {
       console.error("Payment error details:", error);
       console.error("Error response:", error.response?.data);
-
+      
       let errorMessage = "❌ Payment failed. Please try again.";
+      
       if (error.response?.data?.message) {
         errorMessage = `❌ Payment failed: ${error.response.data.message}`;
       } else if (error.message) {
         errorMessage = `❌ Payment failed: ${error.message}`;
       }
-
+      
       alert(errorMessage);
     } finally {
       setPaying(false);
@@ -109,7 +111,6 @@ const OrderPage = () => {
       <div className="order-page">
         <h1 className="page-title">Order Details</h1>
 
-        {/* Shipping Info */}
         <div className="order-section">
           <div className="section-header">
             <h2>Shipping Information</h2>
@@ -122,7 +123,6 @@ const OrderPage = () => {
           </div>
         </div>
 
-        {/* Order Items */}
         <div className="order-section">
           <div className="section-header">
             <h2>Order Items</h2>
@@ -141,7 +141,7 @@ const OrderPage = () => {
                   <tr key={index}>
                     <td>{item.name}</td>
                     <td>{item.qty}</td>
-                    <td>€{item.price}</td>
+                    <td>${item.price}</td>
                   </tr>
                 ))
               ) : (
@@ -153,21 +153,19 @@ const OrderPage = () => {
           </table>
         </div>
 
-        {/* Order Summary & Payment */}
         <div className="order-section order-summary">
           <div className="summary-header">
             <div className="summary-prices">
               <h3>
-                Subtotal: €
+                Subtotal: $
                 {order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0}
               </h3>
-              <h3>Shipping: €10</h3>
-              <h3>Tax: €5</h3>
+              <h3>Shipping: $10</h3>
+              <h3>Tax: $5</h3>
               <h3>
                 Total:{" "}
                 <span>
-                  €
-                  {(order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15}
+                  ${(order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15}
                 </span>
               </h3>
             </div>
@@ -176,27 +174,28 @@ const OrderPage = () => {
               {!order.isPaid ? (
                 <>
                   {paying && <div className="loading">Processing payment...</div>}
-
+                  
                   {paypalClientId ? (
                     <PayPalScriptProvider
                       options={{
                         "client-id": paypalClientId,
-                        currency: "EUR", // ✅ updated
+                        currency: "USD",
                         intent: "capture",
                       }}
                     >
                       <PayPalButtons
                         style={{ layout: "vertical" }}
                         createOrder={(data, actions) => {
-                          const totalAmount =
-                            (order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15;
-
+                          const totalAmount = (order?.orderItems?.reduce(
+                            (a, c) => a + c.price * c.qty, 0
+                          ) || 0) + 15;
+                          
                           return actions.order.create({
                             purchase_units: [
                               {
                                 amount: {
                                   value: totalAmount.toFixed(2),
-                                  currency_code: "EUR", // ✅ updated
+                                  currency_code: "USD",
                                 },
                               },
                             ],
@@ -222,7 +221,9 @@ const OrderPage = () => {
                       />
                     </PayPalScriptProvider>
                   ) : (
-                    <div className="error">❌ PayPal is not configured properly.</div>
+                    <div className="error">
+                      ❌ PayPal is not configured properly.
+                    </div>
                   )}
                 </>
               ) : (
