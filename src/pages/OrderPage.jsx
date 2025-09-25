@@ -1,9 +1,11 @@
+// Fixed OrderPage component - removed unused navigate import
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import "./OrderPage.css";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router-dom"; // Removed useNavigate
 import Navbar from "../component/Navbar";
 import { API } from "../config";
+import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 
 const OrderPage = () => {
   const { id: orderId } = useParams();
@@ -11,7 +13,6 @@ const OrderPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [paying, setPaying] = useState(false);
-  const [paypalLoaded, setPaypalLoaded] = useState(false);
 
   const userInfo = localStorage.getItem("userInfo")
     ? JSON.parse(localStorage.getItem("userInfo"))
@@ -20,104 +21,13 @@ const OrderPage = () => {
   const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || 
                         "AXgjXvV9ul6KUiTw9uKwpKuMObDmWqw3_ZuF9V-v6W1xW76I-tSdx8EnAvO3lVmaRqIEmD0QDAB33fCJ";
 
-  // Load PayPal script manually to avoid CSP issues
   useEffect(() => {
-    const loadPaypalScript = () => {
-      if (window.paypal) {
-        setPaypalLoaded(true);
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = `https://www.paypal.com/sdk/js?client-id=${paypalClientId}&currency=USD`;
-      script.addEventListener('load', () => {
-        setPaypalLoaded(true);
-      });
-      script.addEventListener('error', () => {
-        console.error('Failed to load PayPal SDK');
-      });
-      document.body.appendChild(script);
-    };
-
-    if (paypalClientId) {
-      loadPaypalScript();
-    }
+    console.log("=== ENVIRONMENT VARIABLES DEBUG ===");
+    console.log("VITE_PAYPAL_CLIENT_ID:", import.meta.env.VITE_PAYPAL_CLIENT_ID);
+    console.log("PayPal Client ID to be used:", paypalClientId);
+    console.log("NODE_ENV:", import.meta.env.MODE);
   }, [paypalClientId]);
 
-  // Render PayPal buttons manually
-  useEffect(() => {
-    if (paypalLoaded && window.paypal && order && !order.isPaid) {
-      try {
-        // Clean up any existing buttons
-        const existingContainer = document.getElementById('paypal-button-container');
-        if (existingContainer) {
-          existingContainer.innerHTML = '';
-        }
-
-        window.paypal.Buttons({
-          style: {
-            layout: 'vertical',
-            color: 'gold',
-            shape: 'rect',
-            label: 'paypal'
-          },
-          createOrder: function(data, actions) {
-            const totalAmount = (order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15;
-            return actions.order.create({
-              purchase_units: [{
-                amount: {
-                  value: totalAmount.toFixed(2),
-                  currency_code: "USD",
-                }
-              }]
-            });
-          },
-          onApprove: async function(data, actions) {
-            try {
-              setPaying(true);
-              const details = await actions.order.capture();
-              
-              const paymentResult = {
-                id: details.id,
-                status: details.status,
-                update_time: details.update_time || new Date().toISOString(),
-                email_address: details.payer?.email_address,
-              };
-
-              const response = await axios.put(
-                `${API}/api/orders/${order._id}/pay`,
-                paymentResult,
-                {
-                  headers: { 
-                    Authorization: `Bearer ${userInfo?.token}`,
-                    'Content-Type': 'application/json'
-                  },
-                }
-              );
-
-              if (response.status === 200) {
-                alert("✅ Payment successful! Order updated.");
-                setOrder(response.data);
-              }
-            } catch (error) {
-              console.error("Payment error:", error);
-              alert("❌ Payment failed. Please try again.");
-            } finally {
-              setPaying(false);
-            }
-          },
-          onError: function(err) {
-            console.error('PayPal error:', err);
-            alert('❌ Payment failed. Please try again.');
-          }
-        }).render('#paypal-button-container');
-      } catch (error) {
-        console.error('Error rendering PayPal buttons:', error);
-      }
-    }
-  }, [paypalLoaded, order, userInfo]);
-
-  // Your existing useEffect for fetching order
   useEffect(() => {
     const fetchOrder = async () => {
       try {
@@ -127,30 +37,133 @@ const OrderPage = () => {
           return;
         }
 
+        if (!userInfo?.token) {
+          setError("Please log in to view this order");
+          setLoading(false);
+          return;
+        }
+
+        console.log("=== ORDER FETCH DEBUG ===");
+        console.log("Fetching order with ID:", orderId);
+        console.log("User token exists:", !!userInfo?.token);
+        console.log("API URL:", API);
+
         const { data } = await axios.get(`${API}/api/orders/${orderId}`, {
-          headers: { Authorization: `Bearer ${userInfo?.token}` },
+          headers: { Authorization: `Bearer ${userInfo.token}` },
         });
 
+        console.log("✅ Order fetched successfully:", data);
         setOrder(data);
         setLoading(false);
       } catch (err) {
-        console.error("Order fetch error:", err);
-        setError("Failed to fetch order details");
+        console.error("❌ Order fetch error:", err);
+        setError(err.response?.data?.message || "Failed to fetch order details");
         setLoading(false);
       }
     };
 
-    if (userInfo && orderId) {
-      fetchOrder();
-    } else {
-      setError("Not authorized or missing order ID");
-      setLoading(false);
-    }
+    fetchOrder();
   }, [orderId, userInfo]);
 
-  if (loading) return <div className="loading">Loading...</div>;
+  // Check if order is already paid
+  const isOrderPaid = order?.isPaid;
+
+  const handleApprove = async (details) => {
+    try {
+      setPaying(true);
+      console.log("PayPal approval details:", details);
+      
+      const paymentResult = {
+        id: details.id,
+        status: details.status,
+        update_time: details.update_time || new Date().toISOString(),
+        email_address: details.payer?.email_address,
+      };
+
+      console.log("Sending payment result to backend:", paymentResult);
+
+      const response = await axios.put(
+        `${API}/api/orders/${order._id}/pay`,
+        paymentResult,
+        {
+          headers: { 
+            Authorization: `Bearer ${userInfo.token}`,
+            'Content-Type': 'application/json'
+          },
+        }
+      );
+
+      if (response.status === 200) {
+        console.log("✅ Payment successful! Order updated:", response.data);
+        alert("✅ Payment successful! Order updated.");
+        setOrder(response.data);
+        // You can add navigation here if needed in the future:
+        // navigate(`/order-confirmation/${order._id}`);
+      }
+    } catch (error) {
+      console.error("Payment error:", error);
+      const errorMessage = error.response?.data?.message || "Payment failed. Please try again.";
+      alert(`❌ ${errorMessage}`);
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const createOrder = (data, actions) => {
+    const subtotal = order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0;
+    const total = subtotal + 15;
+    
+    return actions.order.create({
+      purchase_units: [{
+        amount: {
+          value: total.toFixed(2),
+          currency_code: "USD",
+          breakdown: {
+            item_total: {
+              value: subtotal.toFixed(2),
+              currency_code: "USD"
+            },
+            shipping: {
+              value: "10.00",
+              currency_code: "USD"
+            },
+            tax_total: {
+              value: "5.00",
+              currency_code: "USD"
+            }
+          }
+        },
+        items: order?.orderItems?.map(item => ({
+          name: item.name,
+          unit_amount: {
+            value: item.price.toFixed(2),
+            currency_code: "USD"
+          },
+          quantity: item.qty.toString(),
+          sku: item.product || "item"
+        })) || []
+      }]
+    });
+  };
+
+  const onApprove = async (data, actions) => {
+    try {
+      const details = await actions.order.capture();
+      await handleApprove(details);
+    } catch (error) {
+      console.error("PayPal capture error:", error);
+      alert("❌ Payment capture failed. Please try again.");
+    }
+  };
+
+  const onError = (err) => {
+    console.error("PayPal error:", err);
+    alert("❌ Payment system error. Please try again or use another payment method.");
+  };
+
+  if (loading) return <div className="loading">Loading order details...</div>;
   if (error) return <div className="error">{error}</div>;
-  if (!order) return <div>No order found</div>;
+  if (!order) return <div className="error">No order found</div>;
 
   const subtotal = order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0;
   const total = subtotal + 15;
@@ -215,23 +228,46 @@ const OrderPage = () => {
             </div>
 
             <div className="summary-payment">
-              {!order.isPaid ? (
+              {!isOrderPaid ? (
                 <>
                   {paying && <div className="loading">Processing payment...</div>}
                   
-                  <div className="paypal-container">
-                    <h3 className="payment-title">Secure Payment</h3>
-                    
-                    {paypalLoaded ? (
-                      <div id="paypal-button-container"></div>
-                    ) : (
-                      <div className="loading">Loading payment system...</div>
-                    )}
-                    
-                    <div className="security-notice">
-                      <p>🔒 Your payment is secure and encrypted</p>
+                  {paypalClientId && paypalClientId.startsWith('A') ? (
+                    <div className="paypal-container">
+                      <h3 className="payment-title">Secure Payment</h3>
+                      <PayPalScriptProvider
+                        options={{
+                          "client-id": paypalClientId,
+                          currency: "USD",
+                          intent: "capture",
+                          components: "buttons",
+                        }}
+                      >
+                        <PayPalButtons
+                          style={{ 
+                            layout: "vertical",
+                            color: "gold",
+                            shape: "rect",
+                            label: "paypal",
+                            height: 40
+                          }}
+                          createOrder={createOrder}
+                          onApprove={onApprove}
+                          onError={onError}
+                          disabled={paying}
+                        />
+                      </PayPalScriptProvider>
+                      <div className="security-notice">
+                        <p>🔒 Your payment is secure and encrypted</p>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="error">
+                      <h3>❌ Payment System Unavailable</h3>
+                      <p>Invalid PayPal client ID configuration.</p>
+                      <p>Please contact support.</p>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="paid-success">

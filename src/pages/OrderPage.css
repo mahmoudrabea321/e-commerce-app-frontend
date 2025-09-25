@@ -186,3 +186,30 @@
     padding: 1rem;
   }
 }
+/* Additional fixes for PayPal button */
+.paypal-buttons-container {
+  min-height: 40px;
+  display: flex;
+  justify-content: center;
+}
+
+/* PayPal button wrapper fixes */
+[data-react-paypal-script-id] {
+  width: 100% !important;
+}
+
+/* Loading state for PayPal */
+.paypal-loading {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+}
+
+/* Error state improvements */
+.error h3 {
+  margin-bottom: 10px;
+}
+
+.error p {
+  margin: 5px 0;
+}
