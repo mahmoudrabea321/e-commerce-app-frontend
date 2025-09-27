@@ -4,18 +4,21 @@ import "./OrderPage.css";
 import { useParams } from "react-router-dom";
 import Navbar from "../component/Navbar";
 import { API } from "../config";
+import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 
 const OrderPage = () => {
   const { id: orderId } = useParams();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [paying, setPaying] = useState(false);
+  const [paypalClientId, setPaypalClientId] = useState(null);
 
   const userInfo = localStorage.getItem("userInfo")
     ? JSON.parse(localStorage.getItem("userInfo"))
     : null;
 
-  // Fetch order details
+  // ✅ Fetch order details
   useEffect(() => {
     const fetchOrder = async () => {
       try {
@@ -46,51 +49,75 @@ const OrderPage = () => {
     }
   }, [orderId, userInfo]);
 
-  const handleManualPayment = async () => {
-    const transactionId = prompt("Enter PayPal Transaction ID:");
-    const payerEmail = prompt("Enter payer email address:");
-    
-    if (!transactionId || !payerEmail) return;
+  // ✅ Fetch PayPal Client ID from backend
+  useEffect(() => {
+    const fetchPaypalClientId = async () => {
+      try {
+        const { data } = await axios.get(`${API}/api/paypal/config`);
+        setPaypalClientId(data.clientId);
+      } catch (err) {
+        console.error("Failed to load PayPal client ID:", err);
+      }
+    };
+    fetchPaypalClientId();
+  }, []);
 
+  // ✅ Handle PayPal approval
+  const handleApprove = async (details) => {
     try {
+      setPaying(true);
+
       const paymentResult = {
-        id: transactionId,
-        status: "COMPLETED",
-        update_time: new Date().toISOString(),
-        email_address: payerEmail,
+        id: details.id,
+        status: details.status,
+        update_time: details.update_time,
+        email_address: details.payer.email_address,
       };
 
       const response = await axios.put(
         `${API}/api/orders/${order._id}/pay`,
         paymentResult,
         {
-          headers: { 
+          headers: {
             Authorization: `Bearer ${userInfo?.token}`,
-            'Content-Type': 'application/json'
+            "Content-Type": "application/json",
           },
         }
       );
 
       if (response.status === 200) {
-        alert("✅ Payment verified successfully!");
+        alert("✅ Payment successful! Order updated.");
         setOrder({ ...order, isPaid: true, paidAt: new Date().toISOString() });
+      } else {
+        throw new Error("Payment update failed");
       }
     } catch (error) {
-      console.error("Payment error:", error);
-      alert("❌ Payment verification failed.");
+      console.error("Payment error details:", error);
+      let errorMessage = "❌ Payment failed. Please try again.";
+
+      if (error.response?.data?.message) {
+        errorMessage = `❌ Payment failed: ${error.response.data.message}`;
+      } else if (error.message) {
+        errorMessage = `❌ Payment failed: ${error.message}`;
+      }
+
+      alert(errorMessage);
+    } finally {
+      setPaying(false);
     }
   };
 
-  if (loading) return <div className="loading">Loading order details...</div>;
+  if (loading) return <div className="loading">Loading...</div>;
   if (error) return <div className="error">{error}</div>;
-  if (!order) return <div className="error">No order found</div>;
+  if (!order) return <div>No order found</div>;
 
   return (
     <>
       <Navbar />
       <div className="order-page">
-        <h1 className="page-title">Order # {orderId}</h1>
+        <h1 className="page-title">Order Details</h1>
 
+        {/* Shipping Info */}
         <div className="order-section">
           <div className="section-header">
             <h2>Shipping Information</h2>
@@ -103,6 +130,7 @@ const OrderPage = () => {
           </div>
         </div>
 
+        {/* Order Items */}
         <div className="order-section">
           <div className="section-header">
             <h2>Order Items</h2>
@@ -113,7 +141,6 @@ const OrderPage = () => {
                 <th>Product</th>
                 <th>Qty</th>
                 <th>Price</th>
-                <th>Subtotal</th>
               </tr>
             </thead>
             <tbody>
@@ -123,7 +150,6 @@ const OrderPage = () => {
                     <td>{item.name}</td>
                     <td>{item.qty}</td>
                     <td>${item.price}</td>
-                    <td>${(item.price * item.qty).toFixed(2)}</td>
                   </tr>
                 ))
               ) : (
@@ -135,41 +161,77 @@ const OrderPage = () => {
           </table>
         </div>
 
+        {/* Summary & Payment */}
         <div className="order-section order-summary">
           <div className="summary-header">
             <div className="summary-prices">
-              <h3>Subtotal: ${order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0).toFixed(2) || "0.00"}</h3>
-              <h3>Shipping: $10.00</h3>
-              <h3>Tax: $5.00</h3>
               <h3>
-                Total: <span className="total-amount">
-                  ${((order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15).toFixed(2)}
+                Subtotal: $
+                {order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0}
+              </h3>
+              <h3>Shipping: $10</h3>
+              <h3>Tax: $5</h3>
+              <h3>
+                Total:{" "}
+                <span>
+                  {(order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15}
                 </span>
               </h3>
             </div>
 
             <div className="summary-payment">
               {!order.isPaid ? (
-                <div className="manual-payment-section">
-                  <h3>Payment Instructions</h3>
-                  <div className="payment-steps">
-                    <p>1. Send ${((order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15).toFixed(2)} via PayPal to your-business@email.com</p>
-                    <p>2. Complete your payment on PayPal</p>
-                    <p>3. Return here and click the button below</p>
-                    <p>4. Enter your Transaction ID when prompted</p>
-                  </div>
+                <>
+                  {paying && <div className="loading">Processing payment...</div>}
                   
-                  <button 
-                    className="verify-payment-btn"
-                    onClick={handleManualPayment}
-                  >
-                    ✅ Verify PayPal Payment
-                  </button>
-                  
-                  <div className="payment-help">
-                    <p><strong>Need help?</strong> Check your PayPal account under "Activity" to find your Transaction ID.</p>
-                  </div>
-                </div>
+                  {paypalClientId ? (
+                    <PayPalScriptProvider
+                      options={{
+                        "client-id": paypalClientId,
+                        currency: "USD",
+                        intent: "capture",
+                      }}
+                    >
+                      <PayPalButtons
+                        style={{ layout: "vertical" }}
+                        createOrder={(data, actions) => {
+                          const totalAmount = (order?.orderItems?.reduce(
+                            (a, c) => a + c.price * c.qty, 0
+                          ) || 0) + 15;
+                          
+                          return actions.order.create({
+                            purchase_units: [
+                              {
+                                amount: {
+                                  value: totalAmount.toFixed(2),
+                                  currency_code: "USD",
+                                },
+                              },
+                            ],
+                          });
+                        }}
+                        onApprove={async (data, actions) => {
+                          try {
+                            const details = await actions.order.capture();
+                            await handleApprove(details);
+                          } catch (error) {
+                            console.error("PayPal capture error:", error);
+                            alert("❌ Payment capture failed. Please try again.");
+                          }
+                        }}
+                        onError={(err) => {
+                          console.error("PayPal SDK error:", err);
+                          alert("❌ PayPal loading failed. Please refresh the page.");
+                        }}
+                        onCancel={(data) => {
+                          console.log("Payment cancelled by user:", data);
+                        }}
+                      />
+                    </PayPalScriptProvider>
+                  ) : (
+                    <div className="error">❌ Loading PayPal...</div>
+                  )}
+                </>
               ) : (
                 <div className="paid-success">
                   <p className="paid-msg">✅ Order already paid</p>
@@ -188,3 +250,4 @@ const OrderPage = () => {
 };
 
 export default OrderPage;
+
