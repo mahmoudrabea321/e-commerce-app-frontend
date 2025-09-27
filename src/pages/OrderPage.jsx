@@ -11,10 +11,20 @@ const OrderPage = () => {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [paypalError, setPaypalError] = useState("");
 
   const userInfo = localStorage.getItem("userInfo")
     ? JSON.parse(localStorage.getItem("userInfo"))
     : null;
+
+  // Check if PayPal client ID is available
+  const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
+  
+  useEffect(() => {
+    if (!paypalClientId || paypalClientId === 'test') {
+      setPaypalError("PayPal client ID is missing or invalid");
+    }
+  }, [paypalClientId]);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -46,16 +56,24 @@ const OrderPage = () => {
   }, [orderId, userInfo]);
 
   const handleApprove = async (details) => {
-    await axios.put(`${API}/api/orders/${order._id}/pay`, details, {
-      headers: { Authorization: `Bearer ${userInfo?.token}` },
-    });
-    alert("✅ Payment successful!");
-    window.location.reload();
+    try {
+      await axios.put(`${API}/api/orders/${order._id}/pay`, details, {
+        headers: { Authorization: `Bearer ${userInfo?.token}` },
+      });
+      alert("✅ Payment successful!");
+      window.location.reload();
+    } catch (error) {
+      alert("❌ Payment failed. Please try again.");
+      console.error("Payment error:", error);
+    }
   };
 
   if (loading) return <div className="loading">Loading...</div>;
   if (error) return <div className="error">{error}</div>;
   if (!order) return <div>No order found</div>;
+
+  const subtotal = order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0;
+  const total = subtotal + 15;
 
   return (
     <>
@@ -93,7 +111,6 @@ const OrderPage = () => {
               {order?.orderItems?.length > 0 ? (
                 order.orderItems.map((item, index) => (
                   <tr key={index}>
-                  
                     <td>{item.name}</td>
                     <td>{item.qty}</td>
                     <td>${item.price}</td>
@@ -111,49 +128,72 @@ const OrderPage = () => {
         <div className="order-section order-summary">
           <div className="summary-header">
             <div className="summary-prices">
-              <h3>
-                Subtotal: $
-                {order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0}
-              </h3>
+              <h3>Subtotal: ${subtotal}</h3>
               <h3>Shipping: $10</h3>
               <h3>Tax: $5</h3>
-              <h3>
-                Total:{" "}
-                <span>
-                  {(order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15}
-                </span>
-              </h3>
+              <h3>Total: <span>${total}</span></h3>
             </div>
 
             <div className="summary-payment">
               {!order.isPaid ? (
-                <PayPalScriptProvider
-                  options={{
-                    "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID, 
-                    currency: "USD",
-                  }}
-                >
-                  <PayPalButtons
-                    createOrder={(data, actions) =>
-                      actions.order.create({
-                        purchase_units: [
-                          {
-                            amount: {
-                              value:
-                                (order?.orderItems?.reduce(
-                                  (a, c) => a + c.price * c.qty,
-                                  0
-                                ) || 0) + 15,
-                            },
-                          },
-                        ],
-                      })
-                    }
-                    onApprove={(data, actions) =>
-                      actions.order.capture().then(handleApprove)
-                    }
-                  />
-                </PayPalScriptProvider>
+                <>
+                  {paypalError && (
+                    <div className="error">
+                      PayPal unavailable: {paypalError}
+                      <br />
+                      Please check your environment variables.
+                    </div>
+                  )}
+                  
+                  {paypalClientId && paypalClientId !== 'test' ? (
+                    <PayPalScriptProvider
+                      options={{
+                        "client-id": paypalClientId,
+                        currency: "USD",
+                        components: "buttons",
+                        intent: "capture",
+                      }}
+                    >
+                      <PayPalButtons
+                        style={{ 
+                          layout: "vertical",
+                          color: "gold",
+                          shape: "rect",
+                          label: "paypal"
+                        }}
+                        createOrder={(data, actions) => {
+                          return actions.order.create({
+                            purchase_units: [
+                              {
+                                amount: {
+                                  value: total.toFixed(2),
+                                  currency_code: "USD",
+                                },
+                              },
+                            ],
+                          });
+                        }}
+                        onApprove={async (data, actions) => {
+                          try {
+                            const details = await actions.order.capture();
+                            await handleApprove(details);
+                          } catch (error) {
+                            console.error("Payment capture error:", error);
+                            alert("❌ Payment capture failed.");
+                          }
+                        }}
+                        onError={(err) => {
+                          console.error("PayPal Button Error:", err);
+                          setPaypalError("Failed to initialize PayPal");
+                        }}
+                      />
+                    </PayPalScriptProvider>
+                  ) : (
+                    <div className="error">
+                      PayPal configuration error. Please contact support.
+                    </div>
+                  )}
+                </>
               ) : (
                 <p className="paid-msg">✅ Order already paid</p>
               )}
@@ -164,4 +204,5 @@ const OrderPage = () => {
     </>
   );
 };
+
 export default OrderPage;
