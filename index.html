@@ -1,8 +1,22 @@
-<meta http-equiv="Content-Security-Policy" content="
-  default-src 'self';
-  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.paypal.com https://www.sandbox.paypal.com;
-  style-src 'self' 'unsafe-inline';
-  connect-src 'self' https://www.paypal.com https://api.sandbox.paypal.com https://e-commerce-app-backend-production-2350.up.railway.app;
-  img-src 'self' data: blob: https://*;
-  frame-src https://www.paypal.com https://www.sandbox.paypal.com;
-">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- ADD THIS LINE FOR CSP FIX -->
+    <meta http-equiv="Content-Security-Policy" 
+          content="default-src 'self'; 
+                   script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.paypal.com https://www.paypalobjects.com;
+                   style-src 'self' 'unsafe-inline';
+                   img-src 'self' data: https:;
+                   connect-src 'self' https://api.paypal.com https://www.paypal.com https://e-commerce-app-backend-production-2350.up.railway.app;">
+    
+    <title>Vite + React</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
