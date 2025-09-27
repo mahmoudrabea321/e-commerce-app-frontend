@@ -1,7 +1,0 @@
-/*
-  Content-Security-Policy: default-src 'self'
-  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.paypal.com https://www.sandbox.paypal.com
-  style-src 'self' 'unsafe-inline'
-  connect-src 'self' https://www.paypal.com https://api.sandbox.paypal.com https://e-commerce-app-backend-production-2350.up.railway.app
-  img-src 'self' data: https://www.paypal.com
-  frame-src https://www.paypal.com https://www.sandbox.paypal.com
