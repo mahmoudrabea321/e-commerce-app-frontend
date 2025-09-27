@@ -1,0 +1,10 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "script-src 'self' 'unsafe-eval' https://www.paypal.com https://www.paypalobjects.com; connect-src 'self' https://e-commerce-app-backend-production-2350.up.railway.app https://www.paypal.com https://www.sandbox.paypal.com https://api.paypal.com https://api.sandbox.paypal.com; frame-src https://www.paypal.com;"
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
