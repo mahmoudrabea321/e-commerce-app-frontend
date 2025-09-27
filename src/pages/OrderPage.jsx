@@ -182,10 +182,25 @@ const OrderPage = () => {
                         "client-id": paypalClientId,
                         currency: "USD",
                         intent: "capture",
+                        // ADD THESE OPTIONS TO FIX CSP ISSUE
+                        "data-client-token": "optional",
+                        "data-namespace": "paypal_sdk",
+                        "data-sdk-integration-source": "integrationbuilder_sc",
+                        // Use components instead of buttons if needed
+                        components: "buttons",
+                        // Disable advanced features that might use eval
+                        "enable-funding": "paypal",
+                        "disable-funding": "card,venmo",
+                        "merchant-id": null,
                       }}
                     >
                       <PayPalButtons
-                        style={{ layout: "vertical" }}
+                        style={{ 
+                          layout: "vertical",
+                          color: "blue",
+                          shape: "rect",
+                          label: "paypal"
+                        }}
                         createOrder={(data, actions) => {
                           const totalAmount = (order?.orderItems?.reduce(
                             (a, c) => a + c.price * c.qty, 0
