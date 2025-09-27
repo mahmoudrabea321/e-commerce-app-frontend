@@ -5,15 +5,17 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
-    <!-- ADD THIS LINE FOR CSP FIX -->
+    <!-- STRICT CSP - No external resources allowed -->
     <meta http-equiv="Content-Security-Policy" 
           content="default-src 'self'; 
-                   script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.paypal.com https://www.paypalobjects.com;
-                   style-src 'self' 'unsafe-inline';
-                   img-src 'self' data: https:;
-                   connect-src 'self' https://api.paypal.com https://www.paypal.com https://e-commerce-app-backend-production-2350.up.railway.app;">
+                   script-src 'self'; 
+                   style-src 'self'; 
+                   img-src 'self' data:; 
+                   connect-src 'self' https://e-commerce-app-backend-production-2350.up.railway.app;
+                   frame-src 'none';
+                   child-src 'none'">
     
-    <title>Vite + React</title>
+    <title>E-Commerce App</title>
   </head>
   <body>
     <div id="root"></div>

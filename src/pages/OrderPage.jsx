@@ -11,7 +11,12 @@ const OrderPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [paying, setPaying] = useState(false);
-  const [paypalLoaded, setPaypalLoaded] = useState(false);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [formData, setFormData] = useState({
+    transactionId: "",
+    payerEmail: "",
+    amount: ""
+  });
 
   const userInfo = localStorage.getItem("userInfo")
     ? JSON.parse(localStorage.getItem("userInfo"))
@@ -32,6 +37,9 @@ const OrderPage = () => {
         });
 
         setOrder(data);
+        // Pre-fill amount in form
+        const total = ((data?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15).toFixed(2);
+        setFormData(prev => ({ ...prev, amount: total }));
         setLoading(false);
       } catch (err) {
         console.error("Order fetch error:", err);
@@ -48,174 +56,45 @@ const OrderPage = () => {
     }
   }, [orderId, userInfo]);
 
-  // Load PayPal SDK manually with CSP fixes
-  useEffect(() => {
-    if (!order || order.isPaid) return;
-
-    const loadPayPalSDK = () => {
-      // Check if already loaded
-      if (window.paypal) {
-        setPaypalLoaded(true);
-        return;
-      }
-
-      // Remove any existing script
-      const existingScript = document.querySelector('script[src*="paypal"]');
-      if (existingScript) {
-        existingScript.remove();
-      }
-
-      const script = document.createElement('script');
-      script.src = `https://www.paypal.com/sdk/js?client-id=AeDj5t99cWRPf-9ZWOULuehZ-15UDfvNfR9NpHWyF-iGZLpmhSWrdRI3df9IZAjIjcteZPINRjQu5zzg&currency=USD`;
-      script.setAttribute('data-namespace', 'paypal_sdk');
-      script.async = true;
-      
-      script.onload = () => {
-        console.log('PayPal SDK loaded successfully');
-        setPaypalLoaded(true);
-      };
-      
-      script.onerror = () => {
-        console.error('Failed to load PayPal SDK');
-        setPaypalLoaded(false);
-      };
-      
-      document.head.appendChild(script);
-    };
-
-    // Delay loading to avoid CSP conflicts
-    const timer = setTimeout(loadPayPalSDK, 1000);
-    return () => clearTimeout(timer);
-  }, [order]);
-
-  // Handle PayPal approval
-  const handleApprove = async (orderID) => {
-    try {
-      setPaying(true);
-      console.log("Capturing order:", orderID);
-
-      // Capture the order on your backend
-      const response = await axios.post(
-        `${API}/api/orders/${order._id}/capture`,
-        { orderID },
-        {
-          headers: {
-            Authorization: `Bearer ${userInfo?.token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (response.status === 200) {
-        alert("✅ Payment successful! Order updated.");
-        setOrder({ 
-          ...order, 
-          isPaid: true, 
-          paidAt: new Date().toISOString(),
-          paymentResult: {
-            id: orderID,
-            status: "COMPLETED",
-            update_time: new Date().toISOString()
-          }
-        });
-      } else {
-        throw new Error("Payment capture failed");
-      }
-    } catch (error) {
-      console.error("Payment error:", error.response?.data || error);
-      
-      let errorMessage = "❌ Payment failed. Please try again.";
-      if (error.response?.data?.message) {
-        errorMessage = `❌ ${error.response.data.message}`;
-      } else if (error.message) {
-        errorMessage = `❌ ${error.message}`;
-      }
-      
-      alert(errorMessage);
-    } finally {
-      setPaying(false);
-    }
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
-  // Render PayPal buttons manually
-  const renderPayPalButton = () => {
-    if (!paypalLoaded || !window.paypal) {
-      return <div className="paypal-loading">Loading PayPal...</div>;
-    }
-
-    const totalAmount = ((order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15).toFixed(2);
-
-    return (
-      <div 
-        id="paypal-button-container"
-        ref={(node) => {
-          if (node && window.paypal && !node.hasChildNodes()) {
-            try {
-              window.paypal.Buttons({
-                style: {
-                  layout: 'vertical',
-                  color: 'blue',
-                  shape: 'rect',
-                  label: 'paypal'
-                },
-                
-                createOrder: function(data, actions) {
-                  return actions.order.create({
-                    purchase_units: [{
-                      amount: {
-                        value: totalAmount,
-                        currency_code: "USD",
-                      },
-                    }],
-                    application_context: {
-                      shipping_preference: "NO_SHIPPING"
-                    }
-                  });
-                },
-
-                // Fixed: Remove unused 'actions' parameter
-                onApprove: function(data) {
-                  console.log("Order approved:", data.orderID);
-                  return handleApprove(data.orderID);
-                },
-
-                onError: function(err) {
-                  console.error("PayPal error:", err);
-                  alert("❌ PayPal error occurred. Please try again.");
-                },
-
-                onCancel: function(data) {
-                  console.log("Payment cancelled:", data);
-                }
-
-              }).render('#paypal-button-container');
-            } catch (error) {
-              console.error("Error rendering PayPal button:", error);
-              return <div className="error">Error loading PayPal button</div>;
-            }
-          }
-        }}
-      />
-    );
-  };
-
-  // Manual payment fallback
-  const handleManualPayment = async () => {
-    const transactionId = prompt("Enter PayPal Transaction ID:");
-    const payerEmail = prompt("Enter payer email address:");
+  const handleManualPayment = async (e) => {
+    e.preventDefault();
     
-    if (!transactionId || !payerEmail) {
-      alert("Transaction ID and email are required.");
+    const { transactionId, payerEmail, amount } = formData;
+    
+    if (!transactionId.trim() || !payerEmail.trim() || !amount.trim()) {
+      alert("All fields are required.");
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(payerEmail)) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+
+    // Validate amount
+    if (parseFloat(amount) <= 0) {
+      alert("Please enter a valid amount.");
       return;
     }
 
     try {
       setPaying(true);
       const paymentResult = {
-        id: transactionId,
+        id: transactionId.trim(),
         status: "COMPLETED",
         update_time: new Date().toISOString(),
-        email_address: payerEmail,
+        email_address: payerEmail.trim(),
+        amount: parseFloat(amount)
       };
 
       const response = await axios.put(
@@ -230,20 +109,146 @@ const OrderPage = () => {
       );
 
       if (response.status === 200) {
-        alert("✅ Payment verified successfully!");
-        setOrder({ ...order, isPaid: true, paidAt: new Date().toISOString() });
+        alert("✅ Payment verified successfully! Order updated.");
+        setOrder({ 
+          ...order, 
+          isPaid: true, 
+          paidAt: new Date().toISOString(),
+          paymentResult: paymentResult
+        });
+        setShowPaymentForm(false);
+        // Reset form but keep amount
+        setFormData(prev => ({ 
+          transactionId: "", 
+          payerEmail: "", 
+          amount: prev.amount 
+        }));
       }
     } catch (error) {
       console.error("Manual payment error:", error);
-      alert("❌ Payment verification failed. Please check your details.");
+      let errorMessage = "❌ Payment verification failed. Please try again.";
+      
+      if (error.response?.data?.message) {
+        errorMessage = `❌ ${error.response.data.message}`;
+      } else if (error.response?.status === 404) {
+        errorMessage = "❌ Order not found. Please check the order ID.";
+      }
+      
+      alert(errorMessage);
     } finally {
       setPaying(false);
     }
   };
 
-  if (loading) return <div className="loading">Loading order details...</div>;
-  if (error) return <div className="error">{error}</div>;
-  if (!order) return <div className="error">No order found</div>;
+  const PaymentForm = () => (
+    <div className="payment-form-container">
+      <h3>💰 Payment Verification</h3>
+      <p className="form-description">Enter your payment details to verify your order</p>
+      
+      <form onSubmit={handleManualPayment} className="payment-form">
+        <div className="form-group">
+          <label htmlFor="transactionId">Transaction ID *</label>
+          <input
+            id="transactionId"
+            name="transactionId"
+            type="text"
+            value={formData.transactionId}
+            onChange={handleInputChange}
+            required
+            placeholder="Ex: 5HY78923KL1234567"
+            disabled={paying}
+          />
+          <small>From PayPal confirmation email or transaction history</small>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="payerEmail">Your Email Address *</label>
+          <input
+            id="payerEmail"
+            name="payerEmail"
+            type="email"
+            value={formData.payerEmail}
+            onChange={handleInputChange}
+            required
+            placeholder="your-email@example.com"
+            disabled={paying}
+          />
+          <small>Email used for the payment</small>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="amount">Amount Paid (USD) *</label>
+          <input
+            id="amount"
+            name="amount"
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={formData.amount}
+            onChange={handleInputChange}
+            required
+            disabled={paying}
+          />
+          <small>Total amount you paid</small>
+        </div>
+
+        <div className="form-buttons">
+          <button 
+            type="button" 
+            className="cancel-btn"
+            onClick={() => setShowPaymentForm(false)}
+            disabled={paying}
+          >
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            className="verify-btn"
+            disabled={paying}
+          >
+            {paying ? '⏳ Verifying...' : '✅ Verify Payment'}
+          </button>
+        </div>
+      </form>
+
+      <div className="payment-help">
+        <h4>💡 Need help finding your Transaction ID?</h4>
+        <ul>
+          <li><strong>PayPal Email:</strong> Check your PayPal confirmation email</li>
+          <li><strong>PayPal Website:</strong> Go to Activity → Transactions</li>
+          <li><strong>PayPal App:</strong> Check your transaction history</li>
+          <li><strong>Format:</strong> Usually starts with letters and numbers (ex: 5HY78923KL1234567)</li>
+        </ul>
+      </div>
+    </div>
+  );
+
+  if (loading) return (
+    <div className="loading-container">
+      <div className="loading-spinner"></div>
+      <p>Loading order details...</p>
+    </div>
+  );
+  
+  if (error) return (
+    <div className="error-container">
+      <h2>Error</h2>
+      <p>{error}</p>
+      <button onClick={() => window.history.back()} className="back-btn">
+        ← Go Back
+      </button>
+    </div>
+  );
+  
+  if (!order) return (
+    <div className="error-container">
+      <h2>Order Not Found</h2>
+      <p>No order found with ID: {orderId}</p>
+      <button onClick={() => window.history.back()} className="back-btn">
+        ← Go Back
+      </button>
+    </div>
+  );
 
   const totalAmount = ((order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0) || 0) + 15).toFixed(2);
 
@@ -251,101 +256,134 @@ const OrderPage = () => {
     <>
       <Navbar />
       <div className="order-page">
-        <h1 className="page-title">Order # {orderId}</h1>
-
-        <div className="order-section">
-          <div className="section-header">
-            <h2>Shipping Information</h2>
-          </div>
-          <div className="order-info">
-            <p><strong>Name:</strong> {order?.shipping?.name || "N/A"}</p>
-            <p><strong>Address:</strong> {order?.shipping?.address || "N/A"}, {order?.shipping?.city || "N/A"}</p>
-            <p><strong>Postal Code:</strong> {order?.shipping?.postalCode || "N/A"}</p>
-            <p><strong>Country:</strong> {order?.shipping?.country || "N/A"}</p>
+        <div className="order-header">
+          <h1 className="page-title">Order # {orderId}</h1>
+          <div className={`order-status ${order.isPaid ? 'paid' : 'pending'}`}>
+            {order.isPaid ? '✅ Paid' : '⏳ Pending Payment'}
           </div>
         </div>
 
-        <div className="order-section">
-          <div className="section-header">
-            <h2>Order Items</h2>
-          </div>
-          <table className="order-products">
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>Qty</th>
-                <th>Price</th>
-                <th>Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {order?.orderItems?.length > 0 ? (
-                order.orderItems.map((item, index) => (
-                  <tr key={index}>
-                    <td>{item.name}</td>
-                    <td>{item.qty}</td>
-                    <td>${item.price}</td>
-                    <td>${(item.price * item.qty).toFixed(2)}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="4">No items found in this order</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="order-section order-summary">
-          <div className="summary-header">
-            <div className="summary-prices">
-              <h3>Subtotal: ${order?.orderItems?.reduce((a, c) => a + c.price * c.qty, 0).toFixed(2) || "0.00"}</h3>
-              <h3>Shipping: $10.00</h3>
-              <h3>Tax: $5.00</h3>
-              <h3>
-                Total: <span className="total-amount">${totalAmount}</span>
-              </h3>
+        <div className="order-grid">
+          {/* Shipping Information */}
+          <div className="order-section">
+            <div className="section-header">
+              <h2>📦 Shipping Information</h2>
             </div>
+            <div className="order-info">
+              <div className="info-item">
+                <strong>Name:</strong> {order.shipping?.name || "N/A"}
+              </div>
+              <div className="info-item">
+                <strong>Address:</strong> {order.shipping?.address || "N/A"}
+              </div>
+              <div className="info-item">
+                <strong>City:</strong> {order.shipping?.city || "N/A"}
+              </div>
+              <div className="info-item">
+                <strong>Postal Code:</strong> {order.shipping?.postalCode || "N/A"}
+              </div>
+              <div className="info-item">
+                <strong>Country:</strong> {order.shipping?.country || "N/A"}
+              </div>
+            </div>
+          </div>
 
-            <div className="summary-payment">
-              {!order.isPaid ? (
-                <>
-                  {paying && (
-                    <div className="payment-processing">
-                      <div className="loading-spinner"></div>
-                      <p>Processing payment...</p>
-                    </div>
-                  )}
-                  
-                  <div className="payment-options">
-                    <div className="paypal-option">
-                      <h3>Pay with PayPal</h3>
-                      {renderPayPalButton()}
-                    </div>
-                    
-                    <div className="manual-option">
-                      <h3>Manual Payment Verification</h3>
-                      <p>If you've already paid via PayPal, click below to verify:</p>
-                      <button 
-                        className="manual-verify-btn"
-                        onClick={handleManualPayment}
-                        disabled={paying}
-                      >
-                        {paying ? 'Verifying...' : 'Verify Manual Payment'}
-                      </button>
-                    </div>
-                  </div>
-                </>
+          {/* Order Items */}
+          <div className="order-section">
+            <div className="section-header">
+              <h2>🛒 Order Items</h2>
+            </div>
+            <div className="order-items-container">
+              {order.orderItems?.length > 0 ? (
+                <table className="order-products">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Quantity</th>
+                      <th>Price</th>
+                      <th>Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {order.orderItems.map((item, index) => (
+                      <tr key={index}>
+                        <td>{item.name}</td>
+                        <td>{item.qty}</td>
+                        <td>${item.price}</td>
+                        <td>${(item.price * item.qty).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               ) : (
-                <div className="paid-success">
-                  <p className="paid-msg">✅ Order already paid</p>
-                  <p>Paid on: {new Date(order.paidAt).toLocaleDateString()}</p>
-                  {order.paymentResult && (
-                    <p>Transaction ID: {order.paymentResult.id}</p>
-                  )}
-                </div>
+                <p>No items found in this order</p>
               )}
+            </div>
+          </div>
+
+          {/* Order Summary */}
+          <div className="order-section order-summary">
+            <div className="section-header">
+              <h2>💰 Order Summary</h2>
+            </div>
+            <div className="summary-content">
+              <div className="summary-prices">
+                <div className="price-row">
+                  <span>Subtotal:</span>
+                  <span>${order.orderItems?.reduce((a, c) => a + c.price * c.qty, 0).toFixed(2) || "0.00"}</span>
+                </div>
+                <div className="price-row">
+                  <span>Shipping:</span>
+                  <span>$10.00</span>
+                </div>
+                <div className="price-row">
+                  <span>Tax:</span>
+                  <span>$5.00</span>
+                </div>
+                <div className="price-row total">
+                  <span>Total:</span>
+                  <span>${totalAmount}</span>
+                </div>
+              </div>
+
+              <div className="payment-section">
+                {order.isPaid ? (
+                  <div className="paid-success">
+                    <div className="success-icon">✅</div>
+                    <h3>Payment Confirmed</h3>
+                    <p>Paid on: {new Date(order.paidAt).toLocaleDateString()}</p>
+                    {order.paymentResult && (
+                      <p>Transaction ID: {order.paymentResult.id}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="payment-actions">
+                    {showPaymentForm ? (
+                      <PaymentForm />
+                    ) : (
+                      <>
+                        <h3>Complete Your Order</h3>
+                        <p>Pay via PayPal and then verify your payment below:</p>
+                        <button 
+                          className="verify-payment-btn"
+                          onClick={() => setShowPaymentForm(true)}
+                        >
+                            💳 Verify Payment
+                        </button>
+                        <div className="payment-instructions">
+                          <h4>Payment Instructions:</h4>
+                          <ol>
+                            <li>Send <strong>${totalAmount}</strong> via PayPal</li>
+                            <li>Complete your payment</li>
+                            <li>Return here and click "Verify Payment"</li>
+                            <li>Enter your Transaction ID and email</li>
+                          </ol>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
