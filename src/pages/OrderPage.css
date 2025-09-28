@@ -137,3 +137,40 @@
   font-size: 18px;
   margin: 1rem 0;
 }
+/* PayPal Section */
+.paypal-box {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.paypal-box:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+
+.paypal-box h4 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 0.5rem;
+}
+
+.paypal-status.success {
+  color: #2f855a;
+  font-weight: 600;
+}
+
+.paypal-status.failed {
+  color: #c53030;
+  font-weight: 600;
+}
+
+.paypal-buttons {
+  margin-top: 1rem;
+  border-top: 1px dashed #ddd;
+  padding-top: 1rem;
+}
