@@ -1,6 +1,6 @@
 # E-Commerce Frontend
 
-This is the **frontend** of my full-stack E-Commerce application, built with **React**.
+This is the **frontend** of my full-stack E-Commerce(Zelia) application, built with **React**.
 It connects to the backend APIs and provides a smooth shopping experience for users and an admin panel for managing the store.
 
 ## Features
