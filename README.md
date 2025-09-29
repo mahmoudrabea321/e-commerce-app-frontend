@@ -12,7 +12,7 @@ It connects to the backend APIs and provides a smooth shopping experience for us
 
 ## Live Demo
 
-👉 [Click here to try the app]((https://zelia.pages.dev/))
+👉 https://zelia.pages.dev/
 
 ## Demo Credentials
 
@@ -29,7 +29,4 @@ To explore the admin features, you can log in using the following **demo credent
 * Tailwind CSS (or your styling framework)
 * PayPal JS SDK2
 
-## Deployment
 
-This frontend is deployed on **Vercel / Netlify / Render** (replace with your hosting).
-The backend is deployed separately and connected via API.
