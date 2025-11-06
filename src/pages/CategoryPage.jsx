@@ -6,7 +6,7 @@ import Navbar from "../component/Navbar";
 import { CartContext } from "../context/CartContext";
 import "./HomePage.css"; 
 import { API } from "../config";
-
+// rr
 const CategoryPage = () => {
   const { category } = useParams(); 
   const [products, setProducts] = useState([]);
